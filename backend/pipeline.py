@@ -131,11 +131,13 @@ def _run_cycle(
         if not record["geocode_failed"]:
             match = _find_corroborating_event(record, source_type, active_events)
 
+        is_new = match is None
         if match:
             record = _merge_events(match, record, now)
             active_events = [e for e in active_events if e["id"] != match["id"]]
 
         upsert_event(record)
+        record["_is_new"] = is_new
         stored.append(record)
         active_events.append(record)
 
