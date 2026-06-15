@@ -37,4 +37,19 @@ REDDIT_USER_AGENT=streetwise/1.0 by u/yourusername
 ```
 
 ## Current Status
-Not started. Next up: Step 1 — `backend/store.py`.
+All 10 build steps complete. Full pipeline (CTA + Metra + Reddit -> Claude extraction ->
+geocode -> score -> store) runs via FastAPI + APScheduler, with a Leaflet map frontend
+subscribed to live SSE updates.
+
+### Known gaps / follow-ups
+- **Reddit**: `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET` not yet configured -- fetcher is
+  scaffolded and wired into the pipeline but untested live.
+- **Nominatim geocoding**: returns 403 from this sandbox (anti-abuse network block). The
+  geocoder falls back to the Chicago center with `geocode_failed=true` -- needs
+  re-verification from a non-sandboxed network.
+- **Metra feed URL drift**: the spec's RSS URL (`metrarail.com/rss/alerts`) no longer
+  resolves. `fetchers/metra.py` adapts to Metra's current per-line AJAX endpoint instead.
+  See [architecture.md](./architecture.md#metra-service-alerts).
+- **Impact fields** (`impact_roads`/`impact_transit`/`impact_pedestrian`): not populated
+  by the extractor per the spec's system prompt. The frontend falls back to an
+  `event_type`-based heuristic for marker color.

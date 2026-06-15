@@ -7,12 +7,29 @@ raw feeds from CTA, Metra, and Reddit, extracts structured mobility events with 
 and confidence-scores them, and displays them on a live map.
 
 ## Status
-Not yet started. Planning complete — see [docs/dev-plan.md](docs/dev-plan.md) for the build sequence.
+MVP build complete — all 10 steps in [docs/dev-plan.md](docs/dev-plan.md) are done. See that
+doc's "Known gaps / follow-ups" section for what's left before this is fully validated
+(Reddit credentials, live geocoding verification).
 
 ## MVP Goal
 Verify that the event extraction pipeline produces accurate, well-structured, geocoded,
 confidence-scored mobility events — accurate enough to be useful before investing in a
 polished UI or production infrastructure.
+
+## Running the Server
+
+```bash
+# one-time setup
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
+cp .env.example .env   # fill in ANTHROPIC_API_KEY (and REDDIT_* once available)
+
+# run
+./venv/bin/uvicorn backend.main:app --reload
+```
+
+Then open http://127.0.0.1:8000/ — the Leaflet map is served directly by FastAPI, and the
+pipeline polls CTA/Metra/Reddit every 5 minutes (first cycle runs immediately on startup).
 
 ## Docs
 - [Product Requirements (PRD)](docs/prd.md)
