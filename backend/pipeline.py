@@ -8,6 +8,7 @@ from typing import Callable
 from backend.extractor import extract_events
 from backend.fetchers.cta import fetch_cta_alerts
 from backend.fetchers.metra import fetch_metra_alerts
+from backend.fetchers.reddit import fetch_reddit_posts
 from backend.geocoder import geocode
 from backend.scorer import CORROBORATION_SCORE, are_corroborating, score_event
 from backend.store import (
@@ -55,9 +56,25 @@ def run_metra_cycle() -> list[dict]:
     )
 
 
+def run_reddit_cycle() -> list[dict]:
+    """Run one poll cycle for the Reddit source. Returns the events stored/updated."""
+    return _run_cycle(
+        source_type="reddit",
+        fetch_fn=fetch_reddit_posts,
+        id_key="id",
+        batch_mapper=lambda p: {
+            "id": p["id"],
+            "headline": p["title"],
+            "description": p["selftext"],
+            "subreddit": p["subreddit"],
+            "url": p["url"],
+        },
+    )
+
+
 def run_full_cycle() -> list[dict]:
     """Run a poll cycle across all sources."""
-    return run_cta_cycle() + run_metra_cycle()
+    return run_cta_cycle() + run_metra_cycle() + run_reddit_cycle()
 
 
 def _run_cycle(
