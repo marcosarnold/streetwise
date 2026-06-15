@@ -33,12 +33,18 @@ Fetch (CTA, Metra, Reddit) → Extract (Claude API) → Geocode (Nominatim) → 
 - Dedup: by `alert_id`, skip if already stored & unchanged
 - Base confidence: +0.4 (official source)
 
-### Metra RSS
-- Feed: `https://metrarail.com/rss/alerts`
-- Auth: none
-- Format: RSS/XML (`feedparser` or `xml.etree`)
+### Metra Service Alerts
+> The original spec's RSS feed (`metrarail.com/rss/alerts`) no longer resolves —
+> `metrarail.com` now redirects to `metra.com`, which has no RSS feed. Alerts are
+> served via a per-line AJAX endpoint instead. `fetchers/metra.py` adapts to this
+> while still producing `guid`/`title`/`description`/`pubDate`/`link` fields.
+
+- System endpoint: `https://www.metra.com/service_alerts/update` — lists lines with active alerts
+- Per-line endpoint: `https://www.metra.com/service_alerts/modal/{LINE}` — alert details (HTML fragment in JSON)
+- Auth: none (requires a browser `User-Agent`, default `curl` UA is blocked by CloudFront)
+- Format: JSON wrapping an HTML fragment, parsed with regex into structured dicts
 - Poll: every 5 min
-- Key fields: `guid`, `title`, `description`, `pubDate`, `link`
+- Key fields: `guid` (`data-alert-id`), `title`, `description`, `pubDate` (from `data-last-updated`), `link`
 - Dedup: by `guid`
 - Base confidence: +0.4 (official source)
 
