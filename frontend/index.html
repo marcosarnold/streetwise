@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Streetwise — Chicagoland Mobility</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="status-bar">
+    <div id="status-time">Last updated: —</div>
+    <div id="status-sources">
+      <span class="source-dot" data-source="cta">CTA</span>
+      <span class="source-dot" data-source="metra">Metra</span>
+      <span class="source-dot" data-source="reddit">Reddit</span>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="map.js"></script>
+</body>
+</html>

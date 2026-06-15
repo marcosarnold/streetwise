@@ -4,13 +4,17 @@ import asyncio
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend import pipeline
 from backend.store import get_active_events, get_event, init_db
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 POLL_INTERVAL_SECONDS = 5 * 60
 HEARTBEAT_SECONDS = 30
@@ -126,3 +130,6 @@ def status():
         "events_active": len(get_active_events()),
         "sources_healthy": app_state["sources_healthy"],
     }
+
+
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
