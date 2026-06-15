@@ -83,6 +83,17 @@ def upsert_event(event: dict, conn=None):
         conn.execute(sql, row)
 
 
+def get_known_source_ids() -> set[str]:
+    """Return the set of all source IDs referenced by stored events."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT sources FROM events WHERE sources IS NOT NULL").fetchall()
+
+    known: set[str] = set()
+    for row in rows:
+        known.update(json.loads(row["sources"]))
+    return known
+
+
 def get_event(event_id: str) -> dict | None:
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM events WHERE id = ?", (event_id,)).fetchone()

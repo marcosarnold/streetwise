@@ -59,7 +59,19 @@ def extract_events(items: list[dict]) -> list[dict]:
 
     text = response.content[0].text.strip()
     text = _strip_code_fence(text)
-    return json.loads(text)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # Output was likely truncated by max_tokens. Salvage complete objects.
+        return _recover_truncated_array(text)
+
+
+def _recover_truncated_array(text: str) -> list[dict]:
+    last_brace = text.rfind("}")
+    if last_brace == -1:
+        return []
+    return json.loads(text[: last_brace + 1] + "]")
 
 
 def _strip_code_fence(text: str) -> str:
