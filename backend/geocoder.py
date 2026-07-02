@@ -8,8 +8,6 @@ import httpx
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 USER_AGENT = "streetwise/1.0 (mobility intelligence MVP; contact: streetwise@example.com)"
 
-CHICAGO_CENTER = (41.8781, -87.6298)
-
 # Words that make a location string harder for Nominatim to match.
 _DIRECTIONAL_RE = re.compile(
     r"\b(north|south|east|west)(bound)?\b", re.IGNORECASE
@@ -17,22 +15,18 @@ _DIRECTIONAL_RE = re.compile(
 _NEAR_RE = re.compile(r"\bnear\b", re.IGNORECASE)
 
 
-def geocode(location_string: str) -> dict:
-    """Resolve a location string to lat/lng via Nominatim.
+def geocode(location_string: str) -> dict | None:
+    """Resolve a location string to {"lat", "lng"} via Nominatim, or None.
 
-    Returns a dict with lat, lng, and geocode_failed.
+    None means unresolved. There is deliberately no fallback point — a wrong pin is
+    worse than no pin (docs/architecture.md, "no pin without a verified place").
     """
     result = _query_nominatim(location_string)
     if result is None:
         simplified = _simplify(location_string)
         if simplified != location_string:
             result = _query_nominatim(simplified)
-
-    if result is None:
-        lat, lng = CHICAGO_CENTER
-        return {"lat": lat, "lng": lng, "geocode_failed": True}
-
-    return {"lat": result["lat"], "lng": result["lng"], "geocode_failed": False}
+    return result
 
 
 def _query_nominatim(location_string: str) -> dict | None:
@@ -71,4 +65,4 @@ if __name__ == "__main__":
         "Some Totally Made Up Place That Does Not Exist, Chicago, IL",
     ]
     for loc in examples:
-        print(loc, "->", geocode(loc))
+        print(loc, "->", geocode(loc) or "unresolved (no fake pin)")

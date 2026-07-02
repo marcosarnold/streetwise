@@ -3,7 +3,7 @@
 import asyncio
 import json
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -40,8 +40,12 @@ def _run_source(name: str, cycle_fn) -> None:
         records = cycle_fn()
         app_state["sources_healthy"][name] = True
         for record in records:
-            event_type = "new_event" if record.pop("_is_new", False) else "update_event"
-            _broadcast({"type": event_type, "event": _serialize(record)})
+            message_type = "new_event" if record.pop("_is_new", False) else "update_event"
+            # Re-read from the store so the stream and /events share one canonical
+            # serialization — an in-flight pipeline dict must never diverge from it.
+            event = get_event(record["id"])
+            if event is not None:
+                _broadcast({"type": message_type, "event": event})
     except Exception as exc:
         app_state["sources_healthy"][name] = False
         print(f"[pipeline] {name} cycle failed: {exc}")
@@ -52,14 +56,6 @@ def poll_cycle() -> None:
     _run_source("metra", pipeline.run_metra_cycle)
     _run_source("reddit", pipeline.run_reddit_cycle)
     app_state["last_poll_at"] = datetime.now(timezone.utc).isoformat()
-
-
-def _serialize(event: dict) -> dict:
-    """Ensure the sources field is a JSON array, not a JSON-encoded string."""
-    event = dict(event)
-    if isinstance(event.get("sources"), str):
-        event["sources"] = json.loads(event["sources"]) if event["sources"] else []
-    return event
 
 
 @asynccontextmanager
@@ -92,8 +88,8 @@ def list_events(
     event_type: str | None = None,
     limit: int | None = None,
 ):
-    events = get_active_events(min_confidence=min_confidence, event_type=event_type, limit=limit)
-    return [_serialize(e) for e in events]
+    # Store output is already hydrated (typed sources joined, lines parsed, confidence computed).
+    return get_active_events(min_confidence=min_confidence, event_type=event_type, limit=limit)
 
 
 @app.get("/events/stream")
@@ -120,13 +116,20 @@ def get_event_by_id(event_id: str):
     event = get_event(event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
-    return _serialize(event)
+    return event
 
 
 @app.get("/status")
 def status():
+    last = app_state["last_poll_at"]
+    next_at = None
+    if last:
+        next_at = (
+            datetime.fromisoformat(last) + timedelta(seconds=POLL_INTERVAL_SECONDS)
+        ).isoformat()
     return {
-        "last_poll_at": app_state["last_poll_at"],
+        "last_poll_at": last,
+        "next_poll_at": next_at,  # honest cadence — the UI must never imply a live wire
         "events_active": len(get_active_events()),
         "sources_healthy": app_state["sources_healthy"],
     }

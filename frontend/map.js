@@ -10,9 +10,8 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 // event id -> Leaflet marker
 const markers = new Map();
 
-// Impact levels (low | moderate | high) drive marker color. The extraction
-// pipeline doesn't currently populate impact_roads/transit/pedestrian, so
-// fall back to a heuristic based on event_type.
+// Marker color: severity once the v2 extractor populates it (dev-plan 0.5);
+// until then an event_type heuristic — a documented stopgap, not product truth.
 const EVENT_TYPE_IMPACT = {
   accident: "high",
   police_activity: "high",
@@ -23,6 +22,8 @@ const EVENT_TYPE_IMPACT = {
   other: "low",
 };
 
+const SEVERITY_IMPACT = { severe: "high", major: "moderate", minor: "low" };
+
 const IMPACT_COLOR = {
   high: "#d33",
   moderate: "#f0ad4e",
@@ -31,9 +32,7 @@ const IMPACT_COLOR = {
 
 function getImpactLevel(event) {
   return (
-    event.impact_roads ||
-    event.impact_transit ||
-    event.impact_pedestrian ||
+    SEVERITY_IMPACT[event.severity] ||
     EVENT_TYPE_IMPACT[event.event_type] ||
     "low"
   );
@@ -60,7 +59,8 @@ function createIcon(event) {
 }
 
 function popupContent(event) {
-  const sources = (event.sources || []).join(", ");
+  // Sources are typed records: [{type: "cta", id: "..."}].
+  const sources = (event.sources || []).map((s) => s.type).join(" + ");
   const detected = new Date(event.detected_at).toLocaleString();
 
   return `
@@ -68,10 +68,7 @@ function popupContent(event) {
       <h3>${event.event_type.replace(/_/g, " ")}</h3>
       <p>${event.summary}</p>
       <table>
-        <tr><td>Impact (roads)</td><td>${event.impact_roads || "—"}</td></tr>
-        <tr><td>Impact (transit)</td><td>${event.impact_transit || "—"}</td></tr>
-        <tr><td>Impact (pedestrian)</td><td>${event.impact_pedestrian || "—"}</td></tr>
-        <tr><td>Confidence</td><td>${event.confidence.toFixed(2)}</td></tr>
+        <tr><td>Status</td><td>${event.verification || "—"}</td></tr>
         <tr><td>Sources</td><td>${sources}</td></tr>
         <tr><td>Detected</td><td>${detected}</td></tr>
       </table>
@@ -80,6 +77,10 @@ function popupContent(event) {
 }
 
 function upsertMarker(event) {
+  // No pin without a verified place: geo_kind=none events carry no coordinates
+  // and are list-only (dev-plan 1.3) — never a fabricated point.
+  if (event.lat == null || event.lng == null) return;
+
   const existing = markers.get(event.id);
   const latlng = [event.lat, event.lng];
   const icon = createIcon(event);
