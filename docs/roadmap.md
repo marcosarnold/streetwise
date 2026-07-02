@@ -105,3 +105,15 @@ Major pivots, with date and rationale.
   same incident differently; the old rule starved the latency dataset); (g) deferred:
   acting on `is_clearance` (capture-only; vanish-detection does the work) and map
   line-geometry rendering (1.3b, out of the Phase 1 gate).
+- **2026-07-02** — **Clearance refined during 0.3: official anchors + expired ≠
+  cleared.** Vanishing means different things per feed class. CTA/Metra are
+  current-state feeds (alert removal = real "resolved" signal); Reddit is an occurrence
+  feed (posts always drop out of the new/hot window, so absence proves nothing and
+  presence keeps nothing alive). Therefore: only official sources anchor liveness — an
+  event clears when all of them are confirmed vanished; reported-only events never get
+  `cleared_at` (there is no signal to detect) and instead expire from the live view
+  after 3 h via a separate `expired_at` column with no duration claim (`remove_event`,
+  not `clear_event`). The naive per-spec rule would have both fabricated durations and
+  let lingering Reddit posts block real clearances. "Vanished" is defined as ≥ 2
+  successful polls since `last_seen_at` (append-only `poll_log`), making the feed-down
+  guard structural rather than an `if`.

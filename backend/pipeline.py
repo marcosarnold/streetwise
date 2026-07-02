@@ -34,6 +34,7 @@ from backend.store import (
     known_source_hashes,
     link_source,
     mark_source_content,
+    record_poll,
     touch_sources_seen,
     update_raw_extraction,
     upsert_event,
@@ -225,6 +226,11 @@ def _run_cycle(
 
         stored.append(record)
 
+    # Reaching here means the whole cycle succeeded (fetch included) — only now may the
+    # poll be logged. poll_log is what lets clearance prove "vanished": a cycle that
+    # raised records nothing, so a dead feed can never clear events (lifecycle.py).
+    record_poll(source_type, now_iso, len(items))
+
     return stored
 
 
@@ -328,7 +334,11 @@ def _merge_events(existing: dict, new_record: dict, now_iso: str) -> dict:
 
 
 if __name__ == "__main__":
+    from backend.lifecycle import sweep
+
     stored = run_full_cycle()
     print(f"Stored/updated {len(stored)} event(s)")
     for event in stored:
         print(event)
+    swept = sweep()
+    print(f"Lifecycle: {len(swept['cleared'])} cleared, {len(swept['expired'])} expired")

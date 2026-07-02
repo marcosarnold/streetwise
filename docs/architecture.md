@@ -41,10 +41,8 @@ Two independent axes, never conflated:
  signal ──▶ │ REPORTED │ ─ independent corroboration ▶ │ CONFIRMED │
             └──────────┘                               └───────────┘
                  │                                          │
-                 └────────── cleared_at set ────────────────┘
-                     when every source item backing the event has
-                     vanished from a SUCCESSFULLY POLLED feed for
-                     2 consecutive cycles
+        expired_at set (aged out,              cleared_at set (real end signal:
+        NO duration claim)                     honest duration data)
 ```
 
 - Official-source events (CTA, Metra) are born **confirmed**.
@@ -56,10 +54,25 @@ Two independent axes, never conflated:
 - **Updates flow**: a source item whose content hash changed is re-extracted and merged
   into its existing event (`update_event` over SSE). An escalating alert ("minor delays"
   → "line suspended") must escalate in the UI.
-- **Clearance**: vanish-detection only, with a hard guard:
-  **a source's clearance evaluation runs only on polls where that source's fetch
-  succeeded.** A dead feed must never read as a cleared city — the map going green
-  because our fetcher broke is the worst lie this product could tell.
+- **Two distinct endings** (refined during 0.3 — vanishing means different things per
+  feed class, see `backend/lifecycle.py`):
+  - **Cleared** — evidence. CTA/Metra are *current-state* feeds: an alert's removal is a
+    genuine "resolved" signal. An event with official sources clears when **all** of
+    them are confirmed vanished; `cleared_at − detected_at` is honest duration data.
+    Broadcast as `clear_event`.
+  - **Expired** — age. Reddit is an *occurrence* feed: posts always drop out of the
+    new/hot fetch window, so their absence proves nothing (and their presence keeps
+    nothing alive — a lingering /hot post can't hold a cleared event open). Reported-only
+    events leave the live view 3 h after their last update (`REPORTED_TTL_SECONDS`),
+    recorded in `expired_at` — never `cleared_at`, so no fabricated duration ever enters
+    the archive. Broadcast as `remove_event`. The TTL can never preempt a legitimate
+    corroboration (its window is 30 min).
+- **"Confirmed vanished" is poll-count-based, not wall-clock-based**: a source item is
+  vanished iff its feed has completed **≥ 2 successful polls since the item's
+  `last_seen_at`** (append-only `poll_log`). This makes the feed-down guard structural —
+  a broken fetcher records no polls, so nothing can vanish and a dead feed can never
+  read as a cleared city. It also survives restarts and long downtime cleanly: the first
+  two fresh polls re-establish truth.
 - `is_clearance` (extractor flag on "service resumed" items) is **captured but not acted
   on** — agencies mostly edit or remove alerts rather than announcing resumption, so
   vanish-detection does the work. Revisit in Phase 2 if it misses real clearances.
@@ -280,10 +293,20 @@ CREATE TABLE events (
   score_corrob     REAL NOT NULL DEFAULT 0,
   detected_at      TEXT NOT NULL,
   updated_at       TEXT NOT NULL,
-  cleared_at       TEXT,                    -- lifecycle; duration = cleared_at − detected_at
+  cleared_at       TEXT,                    -- real end signal; duration = cleared_at − detected_at
+  expired_at       TEXT,                    -- reported-only event aged out; NO duration claim
   first_social_at  TEXT,                    -- latency (source-published timestamps)
   official_at      TEXT,
   latency_flagged  INTEGER NOT NULL DEFAULT 0  -- 1 = a timestamp fell back to fetch time
+);
+
+-- Append-only log of successful polls per source: the substrate that makes "vanished"
+-- provable (>= 2 polls since last_seen_at) and the feed-down guard structural.
+CREATE TABLE poll_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_type TEXT NOT NULL,
+  polled_at   TEXT NOT NULL,
+  items       INTEGER NOT NULL DEFAULT 0
 );
 
 -- Source of truth for which source items feed which event. Backs three mechanisms:
@@ -370,7 +393,8 @@ clocks and edge cases, not the HTTP plumbing.
 | No Chicago-center fallback pin | A wrong point is worse than no point. `geo_kind=none` events are list-only. |
 | Verification ⊥ lifecycle ⊥ scope | Three orthogonal axes. Conflating them (v1's single enum) corrupts the durations archive and drowns verdicts in elevator notices. |
 | Verdicts from acute events only | Chronic items on a board = permanent "Minor" = alarm fatigue = product death. |
-| Feed-down ≠ clearance | Clearance evaluation only runs for sources whose current poll succeeded. |
+| Feed-down ≠ clearance | "Vanished" = ≥ 2 successful polls since `last_seen_at` (`poll_log`) — a broken fetcher records no polls, so it structurally cannot clear anything. |
+| Expired ≠ cleared | Reddit is an occurrence feed: post absence proves nothing. Reported-only events age out via `expired_at` (`remove_event`), never `cleared_at` — no fabricated durations in the archive. |
 | States in UI, scores internal | Riders act on "Confirmed", not "0.75". |
 | Freshness at read time | Ingest-time recency is a constant, hence meaningless (v1 bug). |
 | Nothing deleted | Durations + latency archive is the moat; it cannot be backfilled. |

@@ -96,10 +96,14 @@ def upsert_event(event: dict, conn=None):
 
 def get_active_events(min_confidence: float = 0.4, event_type: str | None = None,
                       limit: int | None = None) -> list[dict]:
-    """Active (uncleared) events at/above min_confidence, newest first, hydrated."""
+    """Active events at/above min_confidence, newest first, hydrated.
+
+    Active = neither cleared (real end signal) nor expired (reported-only event aged
+    out of the live view). Both kinds of ended events stay in the archive forever.
+    """
     sql = (
         f"SELECT *, {_CONFIDENCE_SQL} AS confidence FROM events"
-        f" WHERE cleared_at IS NULL AND {_CONFIDENCE_SQL} >= ?"
+        f" WHERE cleared_at IS NULL AND expired_at IS NULL AND {_CONFIDENCE_SQL} >= ?"
     )
     params: list = [min_confidence]
     if event_type:
@@ -135,7 +139,7 @@ def _hydrate(conn, events: list[dict]) -> list[dict]:
         return events
     marks = ",".join("?" * len(ids))
     rows = conn.execute(
-        "SELECT event_id, source_type, source_id, first_seen_at, published_at"
+        "SELECT event_id, source_type, source_id, first_seen_at, last_seen_at, published_at"
         f" FROM event_sources WHERE event_id IN ({marks}) ORDER BY first_seen_at",
         ids,
     ).fetchall()
@@ -143,7 +147,8 @@ def _hydrate(conn, events: list[dict]) -> list[dict]:
     for r in rows:
         by_event.setdefault(r["event_id"], []).append(
             {"type": r["source_type"], "id": r["source_id"],
-             "first_seen_at": r["first_seen_at"], "published_at": r["published_at"]}
+             "first_seen_at": r["first_seen_at"], "last_seen_at": r["last_seen_at"],
+             "published_at": r["published_at"]}
         )
     for e in events:
         e["sources"] = by_event.get(e["id"], [])
@@ -232,6 +237,45 @@ def get_active_source_types() -> dict[str, set[str]]:
     for r in rows:
         out.setdefault(r["event_id"], set()).add(r["source_type"])
     return out
+
+
+# ---------------------------------------------------------------- lifecycle
+
+def record_poll(source_type: str, polled_at: str, items: int):
+    """Log a SUCCESSFUL poll. Only callers that completed a fetch may call this —
+    poll_log is what makes 'vanished' provable and a dead feed unable to clear events."""
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO poll_log (source_type, polled_at, items) VALUES (?, ?, ?)",
+            (source_type, polled_at, items),
+        )
+
+
+def recent_poll_times(source_type: str, limit: int = 10) -> list[str]:
+    """Most recent successful poll timestamps for a source, newest first."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT polled_at FROM poll_log WHERE source_type = ?"
+            " ORDER BY polled_at DESC LIMIT ?",
+            (source_type, limit),
+        ).fetchall()
+    return [r["polled_at"] for r in rows]
+
+
+def set_event_cleared(event_id: str, cleared_at: str):
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE events SET cleared_at = ?, updated_at = ? WHERE id = ?",
+            (cleared_at, cleared_at, event_id),
+        )
+
+
+def set_event_expired(event_id: str, expired_at: str):
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE events SET expired_at = ?, updated_at = ? WHERE id = ?",
+            (expired_at, expired_at, event_id),
+        )
 
 
 # ---------------------------------------------------------------- raw_items

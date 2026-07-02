@@ -63,7 +63,9 @@ def test_cta_cycle_writes_v2_rows(tmp_db, monkeypatch):
     assert event["confidence"] == 0.7  # 0.4 source + 0.3 extraction; no dead recency bonus
     assert event["sources"] == [{
         "type": "cta", "id": "1001",
-        "first_seen_at": event["sources"][0]["first_seen_at"], "published_at": None,
+        "first_seen_at": event["sources"][0]["first_seen_at"],
+        "last_seen_at": event["sources"][0]["last_seen_at"],
+        "published_at": None,
     }]
 
     # Raw archived with the extraction paired for /review.

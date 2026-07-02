@@ -97,6 +97,14 @@ function upsertMarker(event) {
   }
 }
 
+function removeMarker(eventId) {
+  const marker = markers.get(eventId);
+  if (marker) {
+    map.removeLayer(marker);
+    markers.delete(eventId);
+  }
+}
+
 async function loadInitialEvents() {
   const response = await fetch("/events");
   const events = await response.json();
@@ -111,6 +119,11 @@ function subscribeToStream() {
 
     if (message.type === "new_event" || message.type === "update_event") {
       upsertMarker(message.event);
+    } else if (message.type === "clear_event" || message.type === "remove_event") {
+      // Both endings drop the marker (the v1 leak fix). Distinct paths on purpose:
+      // clear_event carries a full event with cleared_at, so Phase 1.6 can render the
+      // greyed "cleared · lasted N min" fade before removal; remove_event never will.
+      removeMarker(message.event.id);
     } else if (message.type === "ping") {
       refreshStatus();
     }

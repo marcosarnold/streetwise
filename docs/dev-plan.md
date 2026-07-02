@@ -102,7 +102,20 @@ REDDIT_USER_AGENT=streetwise/1.0 by u/yourusername
   it yields no event — retry on transport failure, never loop on "seen it, nothing
   there"; (b) a degrading update just lowers the score and the default `/events`
   threshold hides it — no deletion, no special case. 19 pytest cases green.
-- **Next: 0.3 — clearance detection + full SSE vocabulary.**
-- Known v1 defects mapped to remaining steps: markers never removed client-side (0.3);
-  real location resolution (0.4); `mode`/`lines`/`station`/`severity`/`scope`
-  extraction (0.5); read-time freshness + matcher fix + latency capture (0.6).
+- **0.3 — done (2026-07-02).** `backend/lifecycle.py` (pure decisions + sweep):
+  events with official sources clear when all of them are confirmed vanished — defined
+  as ≥ 2 successful polls since `last_seen_at`, backed by the append-only `poll_log`
+  (migration 002), which makes the feed-down guard structural (a failed cycle logs no
+  poll, so a dead feed can clear nothing). **Design refinement over the spec** (decision
+  log 2026-07-02): Reddit is an occurrence feed, so reported-only events never get
+  `cleared_at` — they expire after 3 h into a separate `expired_at` column with no
+  duration claim (`remove_event`, not `clear_event`), and a lingering /hot post can't
+  hold a real clearance open. `main.poll_cycle` runs the sweep after the three sources
+  and broadcasts `clear_event`/`remove_event`; `map.js` drops markers on both (the v1
+  leak fix — clear/remove kept as distinct paths so 1.6 can add the cleared-fade).
+  25 pytest cases green, including frozen-clock lifecycle decisions and a
+  dead-feed-clears-nothing integration test.
+- **Next: 0.4 — GTFS gazetteer + location resolution order.**
+- Known v1 defects mapped to remaining steps: real location resolution (0.4);
+  `mode`/`lines`/`station`/`severity`/`scope` extraction (0.5); read-time freshness +
+  matcher fix + latency capture (0.6).

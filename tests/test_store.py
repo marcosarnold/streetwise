@@ -25,7 +25,7 @@ def test_migrations_are_idempotent(tmp_db):
     store.init_db()  # second run must be a no-op, not an error
     with store.get_connection() as conn:
         versions = [r["version"] for r in conn.execute("SELECT version FROM schema_migrations")]
-    assert versions == ["001_schema_v2.sql"]
+    assert versions == ["001_schema_v2.sql", "002_clearance.sql"]
 
 
 def test_event_roundtrip_hydrates_lines_and_sources(tmp_db):
@@ -37,7 +37,9 @@ def test_event_roundtrip_hydrates_lines_and_sources(tmp_db):
     assert event["confidence"] == 0.7  # sum of components, computed at read
     assert event["sources"] == [{
         "type": "cta", "id": "12345",
-        "first_seen_at": "2026-07-01T12:00:00+00:00", "published_at": None,
+        "first_seen_at": "2026-07-01T12:00:00+00:00",
+        "last_seen_at": "2026-07-01T12:00:00+00:00",
+        "published_at": None,
     }]
 
 

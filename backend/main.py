@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend import pipeline
+from backend import lifecycle, pipeline
 from backend.store import get_active_events, get_event, init_db
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -55,7 +55,22 @@ def poll_cycle() -> None:
     _run_source("cta", pipeline.run_cta_cycle)
     _run_source("metra", pipeline.run_metra_cycle)
     _run_source("reddit", pipeline.run_reddit_cycle)
+    _run_lifecycle_sweep()
     app_state["last_poll_at"] = datetime.now(timezone.utc).isoformat()
+
+
+def _run_lifecycle_sweep() -> None:
+    """End events after the sources run: clear_event = real end signal (official alert
+    vanished — carries a duration); remove_event = reported-only event aged out (no
+    duration claim). The client must drop markers on both — the v1 leak."""
+    try:
+        swept = lifecycle.sweep()
+        for event in swept["cleared"]:
+            _broadcast({"type": "clear_event", "event": event})
+        for event in swept["expired"]:
+            _broadcast({"type": "remove_event", "event": {"id": event["id"]}})
+    except Exception as exc:
+        print(f"[lifecycle] sweep failed: {exc}")
 
 
 @asynccontextmanager
