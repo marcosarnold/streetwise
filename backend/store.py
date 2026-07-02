@@ -187,14 +187,38 @@ def touch_sources_seen(source_type: str, source_ids: list[str], seen_at: str):
         )
 
 
-def known_source_ids(source_type: str) -> set[str]:
-    """Source ids already linked to events, per source type (ids from different feeds
-    can collide — a global set would silently mask events)."""
+def known_source_hashes(source_type: str) -> dict[str, str]:
+    """source_id -> last processed content hash, per source type (ids from different
+    feeds can collide — a global map would silently mask events). This is the dedup
+    input: hash match = unchanged, mismatch = the item re-enters as an update."""
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT source_id FROM event_sources WHERE source_type = ?", (source_type,)
+            "SELECT source_id, last_hash FROM event_sources WHERE source_type = ?",
+            (source_type,),
         ).fetchall()
-    return {r["source_id"] for r in rows}
+    return {r["source_id"]: r["last_hash"] for r in rows}
+
+
+def find_event_id_by_source(source_type: str, source_id: str) -> str | None:
+    """Which event does this source item feed? The update-routing lookup."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT event_id FROM event_sources WHERE source_type = ? AND source_id = ?",
+            (source_type, source_id),
+        ).fetchone()
+    return row["event_id"] if row else None
+
+
+def mark_source_content(source_type: str, source_id: str, chash: str, seen_at: str):
+    """Acknowledge a changed item's new content (last_hash + last_seen_at) without
+    touching its event link. Called after a successful extraction call even when the
+    item yielded no event — otherwise it would re-extract every cycle forever."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE event_sources SET last_seen_at = ?, last_hash = ?"
+            " WHERE source_type = ? AND source_id = ?",
+            (seen_at, chash, source_type, source_id),
+        )
 
 
 def get_active_source_types() -> dict[str, set[str]]:

@@ -92,8 +92,25 @@ def test_raw_archive_dedupes_by_content_and_keeps_history(tmp_db):
     assert count == 2  # history accumulates, nothing overwritten
 
 
-def test_known_source_ids_is_per_type(tmp_db):
+def test_known_source_hashes_is_per_type(tmp_db):
     store.upsert_event(_event())
-    store.link_source("evt-1", "cta", "42", "t0", "h")
-    assert store.known_source_ids("cta") == {"42"}
-    assert store.known_source_ids("reddit") == set()  # same id, different feed: distinct
+    store.link_source("evt-1", "cta", "42", "t0", "hash-a")
+    assert store.known_source_hashes("cta") == {"42": "hash-a"}
+    assert store.known_source_hashes("reddit") == {}  # same id, different feed: distinct
+
+
+def test_find_event_by_source_and_mark_content(tmp_db):
+    store.upsert_event(_event())
+    store.link_source("evt-1", "cta", "42", "t0", "hash-a")
+
+    assert store.find_event_id_by_source("cta", "42") == "evt-1"
+    assert store.find_event_id_by_source("cta", "nope") is None
+
+    # Acknowledging changed content updates hash + last_seen but not the event link.
+    store.mark_source_content("cta", "42", "hash-b", "t1")
+    with store.get_connection() as conn:
+        row = conn.execute("SELECT * FROM event_sources").fetchone()
+    assert row["last_hash"] == "hash-b"
+    assert row["last_seen_at"] == "t1"
+    assert row["event_id"] == "evt-1"
+    assert row["first_seen_at"] == "t0"

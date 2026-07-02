@@ -90,8 +90,19 @@ REDDIT_USER_AGENT=streetwise/1.0 by u/yourusername
   derived `confidence` is the uncapped component sum (can exceed 1.0 when corroborated,
   e.g. 1.1) — it's internal machinery feeding states, and thresholds all sit ≤ 0.6, so
   the v1 `min(…, 1.0)` cap added nothing.
-- **Next: 0.2 — content-hash dedup + update flow.**
-- Known v1 defects mapped to remaining steps: updates silently swallowed by ID-only
-  dedup (0.2); markers never removed client-side (0.3); real location resolution (0.4);
-  `mode`/`lines`/`station`/`severity`/`scope` extraction (0.5); read-time freshness +
-  matcher fix + latency capture (0.6).
+- **0.2 — done (2026-07-02).** Polls now partition items by content hash against
+  `event_sources.last_hash`: unchanged → `touch_sources_seen` only (never reaches
+  Claude); changed → re-extracted and folded into the existing event via
+  `find_event_id_by_source` routing (`update_event` over SSE); new → the 0.1
+  create/corroborate path. Updates preserve `id`, `detected_at`, verification,
+  `score_source`/`score_corrob`, and latency fields; the new text wins `event_type`,
+  `summary`, extraction score; location re-geocodes only when `location_string`
+  actually changed. Two semantics worth remembering: (a) changed content is
+  acknowledged (`mark_source_content`) after a *successful* extraction call even when
+  it yields no event — retry on transport failure, never loop on "seen it, nothing
+  there"; (b) a degrading update just lowers the score and the default `/events`
+  threshold hides it — no deletion, no special case. 19 pytest cases green.
+- **Next: 0.3 — clearance detection + full SSE vocabulary.**
+- Known v1 defects mapped to remaining steps: markers never removed client-side (0.3);
+  real location resolution (0.4); `mode`/`lines`/`station`/`severity`/`scope`
+  extraction (0.5); read-time freshness + matcher fix + latency capture (0.6).

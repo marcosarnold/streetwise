@@ -137,6 +137,102 @@ def test_corroboration_merges_promotes_and_keeps_earlier_id(tmp_db, monkeypatch)
     assert len(store.get_active_events(min_confidence=0.0)) == 1
 
 
+def test_changed_alert_updates_its_event(tmp_db, monkeypatch):
+    _wire_cta(monkeypatch, [CTA_ALERT], [CTA_EXTRACTED])
+    event_id = pipeline.run_cta_cycle()[0]["id"]
+    original = store.get_event(event_id)
+
+    escalated_alert = dict(
+        CTA_ALERT, short_description="Red Line suspended between Howard and Belmont."
+    )
+    escalated_extract = dict(
+        CTA_EXTRACTED,
+        event_type="suspension",
+        summary="Red Line suspended between Howard and Belmont.",
+    )
+    geocalls = []
+    monkeypatch.setattr(pipeline, "fetch_cta_alerts", lambda: [escalated_alert])
+    monkeypatch.setattr(pipeline, "extract_events",
+                        lambda batch: [escalated_extract] if batch else [])
+    monkeypatch.setattr(pipeline, "geocode",
+                        lambda s: geocalls.append(s) or {"lat": 1.0, "lng": 2.0})
+
+    stored = pipeline.run_cta_cycle()
+    assert stored[0]["_is_new"] is False
+    assert stored[0]["id"] == event_id  # an escalation escalates — never a sibling event
+
+    updated = store.get_event(event_id)
+    assert updated["event_type"] == "suspension"
+    assert updated["summary"].startswith("Red Line suspended")
+    assert updated["detected_at"] == original["detected_at"]  # when it began doesn't change
+    assert updated["updated_at"] > original["updated_at"]
+    assert updated["verification"] == "confirmed"  # a re-read never downgrades
+    assert geocalls == []  # location unchanged: no Nominatim call spent
+    assert len(store.get_active_events(min_confidence=0.0)) == 1
+
+    # Third poll, same escalated content: fully deduped, Claude never sees it again.
+    calls = []
+    monkeypatch.setattr(pipeline, "extract_events", lambda batch: calls.append(batch) or [])
+    assert pipeline.run_cta_cycle() == []
+    assert calls == [[]]
+
+
+def test_update_with_new_location_regeocodes(tmp_db, monkeypatch):
+    _wire_cta(monkeypatch, [CTA_ALERT], [CTA_EXTRACTED])
+    event_id = pipeline.run_cta_cycle()[0]["id"]
+
+    moved_alert = dict(CTA_ALERT, short_description="Incident relocated.")
+    moved_extract = dict(CTA_EXTRACTED, location_string="Belmont Station, Chicago, IL")
+    _wire_cta(monkeypatch, [moved_alert], [moved_extract],
+              geo={"lat": 41.94, "lng": -87.653})
+    pipeline.run_cta_cycle()
+
+    event = store.get_event(event_id)
+    assert event["location_name"] == "Belmont Station, Chicago, IL"
+    assert event["lat"] == 41.94 and event["geo_kind"] == "point"
+
+
+def test_changed_item_yielding_no_event_is_acknowledged(tmp_db, monkeypatch):
+    _wire_cta(monkeypatch, [CTA_ALERT], [CTA_EXTRACTED])
+    event_id = pipeline.run_cta_cycle()[0]["id"]
+    original_summary = store.get_event(event_id)["summary"]
+
+    resolved = dict(CTA_ALERT, short_description="Service has resumed.")
+    monkeypatch.setattr(pipeline, "fetch_cta_alerts", lambda: [resolved])
+    calls = []
+    monkeypatch.setattr(pipeline, "extract_events", lambda batch: calls.append(batch) or [])
+
+    assert pipeline.run_cta_cycle() == []
+    assert len(calls[0]) == 1  # the changed item reached Claude once…
+    assert pipeline.run_cta_cycle() == []
+    assert calls[1] == []      # …and only once: content acknowledged, no re-extract loop
+
+    # The event itself is untouched — ending it is clearance's job (step 0.3).
+    assert store.get_event(event_id)["summary"] == original_summary
+
+
+def test_degrading_update_falls_below_display_threshold(tmp_db, monkeypatch):
+    # Solo Reddit event at 0.5 (visible, reported); the post gets edited to something
+    # vague. The update applies honestly: score drops to 0.2, the default view hides
+    # it, nothing is deleted or special-cased.
+    monkeypatch.setattr(pipeline, "fetch_reddit_posts", lambda: [REDDIT_POST])
+    monkeypatch.setattr(pipeline, "extract_events",
+                        lambda batch: [REDDIT_EXTRACTED] if batch else [])
+    monkeypatch.setattr(pipeline, "geocode", lambda s: {"lat": 42.019, "lng": -87.673})
+    event_id = pipeline.run_reddit_cycle()[0]["id"]
+
+    edited = dict(REDDIT_POST, selftext="nvm, might have been nothing")
+    vague = dict(REDDIT_EXTRACTED, extraction_confidence="low")
+    monkeypatch.setattr(pipeline, "fetch_reddit_posts", lambda: [edited])
+    monkeypatch.setattr(pipeline, "extract_events", lambda batch: [vague] if batch else [])
+
+    stored = pipeline.run_reddit_cycle()
+    assert stored[0]["_is_new"] is False
+    assert store.get_active_events(min_confidence=0.4) == []  # hidden from the default view
+    event = store.get_event(event_id)
+    assert event["confidence"] == 0.2  # 0.2 source + 0.0 extraction — archived, not erased
+
+
 def test_same_source_type_never_corroborates(tmp_db, monkeypatch):
     _wire_cta(monkeypatch, [CTA_ALERT], [CTA_EXTRACTED])
     pipeline.run_cta_cycle()

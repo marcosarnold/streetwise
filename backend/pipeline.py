@@ -23,13 +23,17 @@ from backend.scorer import (
     source_score,
 )
 from backend.store import (
+    EVENT_COLUMNS,
     archive_raw_item,
     content_hash,
+    find_event_id_by_source,
     get_active_events,
     get_active_source_types,
+    get_event,
     init_db,
-    known_source_ids,
+    known_source_hashes,
     link_source,
+    mark_source_content,
     touch_sources_seen,
     update_raw_extraction,
     upsert_event,
@@ -108,21 +112,36 @@ def _run_cycle(
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # Archive every fetched item before anything downstream can fail — the raw record
-    # is the eval corpus and the replay log. Duplicate (id, content) pairs no-op.
+    # is the eval corpus and the replay log. Duplicate (id, content) pairs no-op;
+    # changed content gets a new row, so history accumulates.
+    items_by_id: dict[str, dict] = {}
     hashes: dict[str, str] = {}
     for item in items:
         sid = str(item[id_key])
+        items_by_id[sid] = item
         hashes[sid] = content_hash(item)
         archive_raw_item(source_type, sid, hashes[sid], json.dumps(item), now_iso)
 
-    # Items still present in this (successful) poll keep their events alive —
-    # last_seen_at is what clearance detection (0.3) will read.
-    known = known_source_ids(source_type)
-    touch_sources_seen(source_type, [i for i in hashes if i in known], now_iso)
+    # Partition by content, not just id: unchanged items never reach Claude; changed
+    # items re-enter as updates (an escalating alert must escalate — v1 skipped it forever).
+    prev = known_source_hashes(source_type)
+    unchanged = [sid for sid, h in hashes.items() if prev.get(sid) == h]
+    changed = [sid for sid in hashes if sid in prev and prev[sid] != hashes[sid]]
+    new = [sid for sid in hashes if sid not in prev]
 
-    new_items = [i for i in items if str(i[id_key]) not in known]
-    batch = [batch_mapper(i) for i in new_items]
+    # Still-present items keep their events alive — last_seen_at is what clearance
+    # detection (0.3) will read.
+    touch_sources_seen(source_type, unchanged, now_iso)
+
+    batch = [batch_mapper(items_by_id[sid]) for sid in new + changed]
     extracted = extract_events(batch)
+
+    # The extraction CALL succeeded: acknowledge every changed item's new content now,
+    # even those that yielded no event — an unacknowledged hash would re-extract every
+    # cycle forever. (If extract_events raised, nothing is acknowledged and the next
+    # cycle retries: retry on transport failure, don't retry on "seen it, nothing there".)
+    for sid in changed:
+        mark_source_content(source_type, sid, hashes[sid], now_iso)
 
     active_events = get_active_events(min_confidence=0.0)
     source_types_by_event = get_active_source_types()
@@ -134,6 +153,24 @@ def _run_cycle(
 
         s_src = source_score(source_type)
         s_ext = extraction_score(event["extraction_confidence"])
+
+        # Update routing: a source item already linked to an event is re-describing it —
+        # fold the fresh extraction into that event, never create a sibling. This sits
+        # BEFORE the drop threshold on purpose: an update that degrades below the display
+        # threshold still applies; the /events min_confidence filter hides it (honest
+        # degradation, no special case, nothing deleted).
+        existing_id = find_event_id_by_source(source_type, sid)
+        if existing_id is not None:
+            existing = get_event(existing_id)
+            if existing is not None:
+                record = _apply_update(existing, event, s_ext, now_iso)
+                upsert_event(record)
+                record["_is_new"] = False
+                stored.append(record)
+                active_events = [e for e in active_events if e["id"] != record["id"]]
+                active_events.append(record)
+            continue
+
         # v1 also added an ingest-time recency bonus; it was a constant (+0.05 for every
         # event) and is gone. Freshness lives in read-time serialization, not the score.
         if s_src + s_ext < DROP_THRESHOLD:
@@ -225,6 +262,32 @@ def _find_corroborating_event(
             return existing
 
     return None
+
+
+def _apply_update(existing: dict, event: dict, s_ext: float, now_iso: str) -> dict:
+    """Fold a changed source item's fresh extraction into its existing event.
+
+    Preserved on principle: id and detected_at (an update changes what we know, not
+    when it began), verification (a re-read never downgrades it), score_source and
+    score_corrob, and the latency fields. What the new text carries wins: event_type,
+    summary, extraction score — and location, re-geocoded only if it actually changed
+    (Nominatim is rate-limited; an unchanged location must not cost a call).
+    """
+    updated = {c: existing.get(c) for c in EVENT_COLUMNS}
+
+    loc = event.get("location_string")
+    if loc and loc != existing.get("location_name"):
+        geo = geocode(loc)
+        updated["location_name"] = loc
+        updated["lat"] = geo["lat"] if geo else None
+        updated["lng"] = geo["lng"] if geo else None
+        updated["geo_kind"] = "point" if geo else "none"
+
+    updated["event_type"] = event["event_type"]
+    updated["summary"] = event["summary"]
+    updated["score_extraction"] = s_ext
+    updated["updated_at"] = now_iso
+    return updated
 
 
 def _merge_events(existing: dict, new_record: dict, now_iso: str) -> dict:
