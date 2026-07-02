@@ -1,231 +1,384 @@
 # Streetwise — Architecture
 
+_Rewritten 2026-07-01 for the transit-first pivot; amended same day after the
+pre-implementation review (chronic/acute scope, `event_sources`, feed-down guard,
+source-published latency timestamps, verification/lifecycle split, corroboration matcher
+fix). Sections marked **(v2)** describe behavior the current code does not yet implement —
+[dev-plan.md](./dev-plan.md) is the sequence that closes each gap._
+
 ## Stack
-Python + FastAPI + Claude API + SQLite + Leaflet/OSM
 
-## High-Level Flow
-The pipeline runs on a 5-minute polling cycle:
+Python + FastAPI + Claude API + SQLite + Leaflet/OSM. Vanilla JS frontend, no build step.
+Everything runs in one process; APScheduler drives a 5-minute poll cycle. Schema changes
+ship as numbered, idempotent SQL files in `migrations/`, applied at startup.
+
+## High-level flow
 
 ```
-Fetch (CTA, Metra, Reddit) → Extract (Claude API) → Geocode (Nominatim) → Score (Confidence) → Store + Push (SQLite + SSE)
+Fetch (CTA, Metra, Reddit)
+  → Archive raw (raw_items — before anything else can fail)          (v2)
+  → Dedup (event_sources + content hash — changed items re-enter)    (v2)
+  → Extract (Claude: one call per source batch)
+  → Resolve location (gazetteer first, Nominatim fallback, or none)  (v2)
+  → Score + verify (Reported / Confirmed; corroboration merge)
+  → Store (SQLite; nothing deleted, ever)                            (v2)
+  → Push (SSE: new / update / clear / remove)                        (v2)
 ```
 
-## Components
+## Event lifecycle **(v2 — the core semantic change)**
 
-| Component | Responsibility |
-|---|---|
-| **Fetcher** | Polls CTA XML feed, Metra RSS, and Reddit API on a 5-min cycle. Deduplicates raw items by ID/hash before passing downstream. |
-| **Event Extractor** | Single Claude API call per source batch. Returns structured JSON: `event_type`, `location_string`, `summary`, `time`, `extraction_confidence`. |
-| **Geocoder** | Passes `location_string` to Nominatim OSM API. Returns lat/lng. Falls back to bounding-box center (Chicago) if unresolvable. |
-| **Scorer** | Computes confidence score from source type, extraction confidence, corroboration, and recency. |
-| **Store** | Writes events to SQLite. Maintains 24-hour rolling window. Marks events resolved when source signals clearance. |
-| **SSE Server** | FastAPI endpoint that streams new and updated events to connected frontend clients in real time. |
-| **Map UI** | Leaflet + OpenStreetMap. Subscribes to SSE. Renders markers by impact level. Dimmed markers for unverified events. |
+Two independent axes, never conflated:
 
-## Data Sources
+- **`verification`** — *how much we believe it*: `reported` (single unofficial source) or
+  `confirmed` (official source, or independent corroboration). Immutable meaning; a
+  cleared event keeps its verification so the durations archive can distinguish
+  "confirmed derailment, 47 min" from "one rider's report, 47 min".
+- **Lifecycle** — *whether it's over*: derived from `cleared_at`. Display state is
+  computed: cleared if `cleared_at` is set, else the verification word.
 
-### CTA Alerts
+```
+            ┌──────────┐   official source or          ┌───────────┐
+ signal ──▶ │ REPORTED │ ─ independent corroboration ▶ │ CONFIRMED │
+            └──────────┘                               └───────────┘
+                 │                                          │
+                 └────────── cleared_at set ────────────────┘
+                     when every source item backing the event has
+                     vanished from a SUCCESSFULLY POLLED feed for
+                     2 consecutive cycles
+```
+
+- Official-source events (CTA, Metra) are born **confirmed**.
+- Solo Reddit events are born **reported**; corroboration by a different source type
+  promotes them (and records a latency observation — see below).
+- **Scope** is a third, orthogonal attribute — `acute | chronic | planned` — because a
+  months-long elevator outage and a derailment are both "confirmed" but must never carry
+  the same product weight (see *Verdicts*, below).
+- **Updates flow**: a source item whose content hash changed is re-extracted and merged
+  into its existing event (`update_event` over SSE). An escalating alert ("minor delays"
+  → "line suspended") must escalate in the UI.
+- **Clearance**: vanish-detection only, with a hard guard:
+  **a source's clearance evaluation runs only on polls where that source's fetch
+  succeeded.** A dead feed must never read as a cleared city — the map going green
+  because our fetcher broke is the worst lie this product could tell.
+- `is_clearance` (extractor flag on "service resumed" items) is **captured but not acted
+  on** — agencies mostly edit or remove alerts rather than announcing resumption, so
+  vanish-detection does the work. Revisit in Phase 2 if it misses real clearances.
+- The UI renders **states, never scores**. Numeric confidence is internal.
+
+## Verdicts: acute-only **(v2)**
+
+The `/lines` verdict per line = worst severity among **active, acute** events on that
+line. Chronic and planned items (elevator outages, ADA notices, long construction —
+which is most of the official feed on a quiet day) render in a separate "ongoing
+conditions" tier on the line's detail view and **never degrade the verdict**. A board
+that always shows "Minor" because some elevator is always out trains riders to ignore
+it within a week; alarm fatigue is fatal to a status product.
+
+## Data sources
+
+All verified working as described; gotchas preserved from live debugging.
+
+### CTA Alerts (rail + bus)
 - Feed: `https://www.transitchicago.com/api/1.0/alerts.aspx?outputType=XML`
-- Auth: none
-- Format: XML (`xml.etree.ElementTree`)
-- Poll: every 5 min
-- Key fields: `alert_id`, `headline`, `short_description`, `service_id`, `impact`, `event_start`, `event_end`
-- Dedup: by `alert_id`, skip if already stored & unchanged
-- Base confidence: +0.4 (official source)
+- Auth: none · Format: XML (`xml.etree.ElementTree`) · Poll: 5 min
+- Key fields: `alert_id`, `headline`, `short_description`, `service_id`, `impact`,
+  `event_start`, `event_end`
+- The feed's own `Impact` classification ("Planned Work", "Elevator Status", "Service
+  Disruption"…) is passed through to the extractor as the primary hint for `scope` —
+  the agency already classifies chronic/planned for us.
+- Born confirmed (official source)
 
 ### Metra Service Alerts
 > The original spec's RSS feed (`metrarail.com/rss/alerts`) no longer resolves —
-> `metrarail.com` now redirects to `metra.com`, which has no RSS feed. Alerts are
-> served via a per-line AJAX endpoint instead. `fetchers/metra.py` adapts to this
-> while still producing `guid`/`title`/`description`/`pubDate`/`link` fields.
+> `metrarail.com` redirects to `metra.com`, which has no RSS feed. Alerts are served via
+> a per-line AJAX endpoint instead (decision log, 2026-06-15).
 
-- System endpoint: `https://www.metra.com/service_alerts/update` — lists lines with active alerts
-- Per-line endpoint: `https://www.metra.com/service_alerts/modal/{LINE}` — alert details (HTML fragment in JSON)
-- Auth: none (requires a browser `User-Agent`, default `curl` UA is blocked by CloudFront)
-- Format: JSON wrapping an HTML fragment, parsed with regex into structured dicts
-- Poll: every 5 min
-- Key fields: `guid` (`data-alert-id`), `title`, `description`, `pubDate` (from `data-last-updated`), `link`
-- Dedup: by `guid`
-- Base confidence: +0.4 (official source)
+- System endpoint: `https://www.metra.com/service_alerts/update` — lines with active alerts
+- Per-line endpoint: `https://www.metra.com/service_alerts/modal/{LINE}` — details
+  (HTML fragment in JSON, parsed with regex)
+- Auth: none, **but requires a browser `User-Agent`** — the default `curl` UA is blocked
+  by CloudFront
+- Key fields: `guid` (`data-alert-id`), `title`, `description`, `pubDate`
+  (`data-last-updated`), `link`
+- Born confirmed (official source)
 
-### Reddit
-- Subreddits: r/chicago, r/Chicagoland
-- Auth: Reddit API key (register at reddit.com/prefs/apps)
-- Library: PRAW
-- Query: new + hot posts, filtered for mobility keywords before sending to Claude
-- Keyword filter: accident, crash, closed, delay, construction, police, fire, protest, flooding, Metra, CTA, L train, expressway, highway
-- Poll: every 5 min (stay within free tier rate limits)
-- Dedup: by post id
-- Base confidence: +0.2 (social source)
+### Reddit (the street sensor)
+- Subreddits: r/chicago, r/Chicagoland · Library: PRAW · Poll: 5 min (free-tier limits)
+- Keyword pre-filter before any Claude call: accident, crash, closed, delay,
+  construction, police, fire, protest, flooding, Metra, CTA, L train, expressway, highway
+- Born **reported**; promoted to confirmed only by corroboration. Road/civic Reddit
+  events are retained as sensors (corroboration + context), not as the product's face.
+- Posts only for MVP; comments in daily threads (often the fastest signal) are a Phase 2
+  sensor upgrade.
 
-## Claude API — Event Extraction
+### GTFS static (the gazetteer) **(v2)**
+- CTA GTFS: `https://www.transitchicago.com/downloads/sch_data/google_transit.zip`
+- Metra GTFS: via Metra's developer program (free credentials — verify current access
+  path at metra.com/developers)
+- Fetched **offline** by `scripts/build_gazetteer.py`, not at runtime. Produces:
+  - `data/gazetteer.json` — every station/stop: canonical name, aliases, lat/lng, routes
+  - `data/lines.geojson` — route polylines + official colors (CTA line colors are the
+    design system's semantic primitives)
+- Regenerate quarterly or when agencies announce service changes.
+
+## Claude extraction
 
 | Setting | Value |
 |---|---|
 | Model | `claude-sonnet-4-6` |
-| Max tokens | 1024 per call |
-| Temperature | 0 (deterministic) |
-| Call pattern | One call per source per poll cycle (3 calls / 5-min cycle) |
-| Input | Batch of raw posts/alerts as JSON array in user message |
+| Max tokens | 2048 |
+| Temperature | 0 |
+| Call pattern | One call per source per poll cycle |
+| Input | JSON array of raw items |
 | Output | JSON array of structured events |
 
-### System Prompt (verbatim)
-```
-You are a mobility event extractor for the Chicagoland area. You receive raw
-text from transit alerts, RSS feeds, or Reddit posts and return structured
-mobility events as a JSON array.
+### System prompt **(v2 — replaces the v1 prompt verbatim)**
 
-For each mobility event detected, return an object with these exact fields:
- - event_type: one of [accident, construction, transit_disruption, police_activity,
- civic_event, weather_impact, other]
- - location_string: a specific, geocodable address or intersection in Chicago.
- Example: "I-90 westbound near Cicero Ave, Chicago, IL"
- Do NOT return vague strings like "downtown" or "north side".
- - summary: one sentence describing the event and its mobility impact.
- - estimated_duration: short | hours | ongoing | unknown
+```
+You are a transit disruption extractor for Chicagoland. You receive raw items from CTA
+alerts, Metra alerts, or Reddit posts and return structured disruption events as a JSON
+array.
+
+For each current, real-world disruption, return an object with these exact fields:
+ - event_type: one of [delay, suspension, reroute, station_issue, accessibility,
+   crowding, incident, construction, weather_impact, other]
+ - mode: one of [cta_rail, cta_bus, metra, road, other]
+ - lines: array of affected route identifiers, using official names exactly:
+   CTA rail: "Red","Blue","Brown","Green","Orange","Pink","Purple","Yellow"
+   CTA bus: the route number as a string, e.g. "66","22"
+   Metra: the line code, e.g. "UP-N","BNSF","MD-W"
+   Empty array if no specific line is identifiable.
+ - station: the official station/stop name if the event is anchored to one, else null.
+   Use the agency's name ("Jefferson Park", "Clybourn"), not a paraphrase.
+ - location_string: a specific geocodable address or intersection ONLY for events not
+   anchored to a station or line (e.g. a crash on a street). Null otherwise.
+   Never return vague strings like "downtown" or "north side".
+ - severity: minor (residual delays, minor reroute) |
+   major (significant delays, partial suspension, station closure) |
+   severe (line suspension, derailment, service stopped)
+ - scope: acute (happening now, unexpected — delays, incidents, suspensions) |
+   chronic (long-running conditions — elevator/escalator outages, accessibility
+   notices, construction lasting weeks) |
+   planned (scheduled work announced in advance)
+   CTA items carry the agency's own Impact classification — trust it when present.
+ - summary: one plain-language sentence, present tense, that a rider on a platform would
+   find useful. Name the line and the consequence. No agency jargon.
+ - is_clearance: true if this item announces that a disruption has ENDED or service has
+   resumed; false otherwise.
  - extraction_confidence: high | medium | low
- high = clear event, specific location, unambiguous impact
- medium = event likely but location or impact uncertain
- low = vague or speculative, minimal mobility signal
+   high = clear event, specific line/place, unambiguous impact
+   medium = event likely but line, place, or impact uncertain
+   low = vague or speculative, minimal transit signal
  - source_id: the id or guid of the source item
 
 Return ONLY a JSON array. No explanation, no markdown, no preamble.
-If no mobility events are detected, return an empty array: []
-Drop posts that are questions, opinions, or historical references with no
-current mobility impact.
+If no disruption events are detected, return an empty array: []
+Drop items that are questions, opinions, or historical references with no current impact.
 ```
 
-## Geocoding Flow
-1. Claude returns `location_string` (e.g. "I-90 westbound near Cicero Ave, Chicago, IL").
-2. Pass to Nominatim: `https://nominatim.openstreetmap.org/search?q={location}&format=json&limit=1`
-3. Extract lat/lng from the first result.
-4. If no result, retry once with a simplified version of the string.
-5. If still no result, set lat/lng to Chicago center (41.8781, −87.6298) and flag `geocode_failed=true`.
-6. Rate limit: 1 request/second — add `time.sleep(1)` between calls.
-7. Set a descriptive `User-Agent` header per Nominatim policy.
+Design notes on the prompt:
+- `lines` + `station` make the gazetteer join deterministic — the model names entities,
+  the gazetteer supplies coordinates. Free-text geocoding becomes the fallback, not the
+  path.
+- `scope` exists because the official feeds are dominated by chronic items on a quiet
+  day; without it, verdicts drown in elevator notices (see *Verdicts*).
+- `is_clearance` is capture-only for MVP (see lifecycle).
+- The v1 `impact_roads/transit/pedestrian` fields are **removed everywhere** (schema, UI,
+  prompt) — they were never populated, and a field that exists but is always empty is
+  debt. `severity` + `lines` + `scope` carry the intent and are actually extractable.
+  `estimated_duration` is likewise dropped; measured durations (`cleared_at −
+  detected_at`) replace guessed ones.
+- The taxonomy is wide (10 types × 5 modes × 3 severities × 3 scopes); `/review` measures
+  its accuracy. If type accuracy is poor, collapse the taxonomy rather than tuning the
+  prompt indefinitely.
 
-## Confidence Scoring
+## Location resolution **(v2)** — no pin without a verified place
 
-`score = min(source_score + extraction_score + corroboration_score + recency_score, 1.0)`
+Resolution order, recorded in `geo_kind`:
+
+1. **`station`** — `station` matches the gazetteer (exact, then alias/fuzzy). Exact
+   coordinates, instant, offline. Expected to cover most transit events.
+2. **`line`** — no station, but `lines` is non-empty: the event anchors to line geometry.
+   No point marker exists.
+3. **`point`** — `location_string` resolved via Nominatim (rate limit 1 req/s,
+   descriptive User-Agent per policy; retry once with directional words stripped).
+4. **`none`** — nothing resolved. List surfaces only. **The Chicago-center fallback pin
+   is abolished** — a wrong point is worse than no point (under v1 behavior, a Kenosha
+   elevator outage rendered as a Loop incident).
+
+Nominatim sits off the poll cycle's critical path: `geo_kind=none` events render
+immediately in lists and upgrade via `update_event` if a later geocode succeeds.
+
+## Scoring, verification, corroboration
+
+Numeric scoring is internal machinery that *feeds* verification; components are stored
+separately so display math can evolve without re-ingesting.
 
 | Component | Detail | Max |
 |---|---|---|
-| Source type | CTA/Metra official: +0.4 / Reddit: +0.2 | +0.4 |
-| Extraction confidence | high: +0.3 / medium: +0.15 / low: +0.0 | +0.3 |
-| Corroboration | Same event from 2+ independent sources: +0.4 | +0.4 |
-| Recency | <15 min: +0.05 / 15–60 min: +0.02 / >60 min: +0.0 | +0.05 |
+| Source | CTA/Metra official +0.4 · Reddit +0.2 | +0.4 |
+| Extraction confidence | high +0.3 · medium +0.15 · low +0.0 | +0.3 |
+| Corroboration | 2+ independent source types +0.4 | +0.4 |
 
-### Display Thresholds
+- Official sources → born **confirmed** regardless of total. Otherwise: **≥ 0.6
+  confirmed · 0.4–0.59 reported · < 0.4 dropped** (raw item + extraction still archived
+  in `raw_items` for eval).
+- **Freshness is computed at read time, never stored.** The v1 ingest-time recency
+  component was always evaluated at `detected_at == now`, contributing a constant +0.05 —
+  a dead parameter, and why every v1 event scored exactly 0.75. Freshness drives display
+  decay (ordering, opacity) in serialization and the frontend; it never changes
+  verification.
 
-| Score | Behavior | Example |
-|---|---|---|
-| ≥ 0.6 | Show on map, full opacity | CTA alert, recent, high extraction → 0.75 |
-| 0.4 – 0.59 | Show dimmed, "unverified" badge | Reddit, high extraction, no corroboration → 0.55 |
-| < 0.4 | Drop silently, do not store | Reddit, medium extraction, no corroboration → 0.37 |
+### Corroboration **(matcher amended 2026-07-01)**
+Two events corroborate iff **all** of:
+- different source *types* (stored explicitly on `event_sources` — never inferred from
+  ID shape; the v1 `isdigit()` heuristic could silently mis-corroborate, a trust bug);
+- overlapping `lines`, or same `station`, or locations within 500 m;
+- timestamps within 30 min.
 
-### Corroboration Matching
-Two events corroborate if **all** of:
-- Different sources (e.g. Reddit + CTA, not two Reddit posts)
-- Same `event_type`
-- Geocoded locations within 500m AND timestamps within 30 min
+`event_type` equality is **not** required — a derailment arrives from CTA as `incident`
+and from Reddit as `delay`; demanding equal types starves the corroboration (and
+latency) datasets. `event_type` is an informational tag, not a join key.
 
-When corroboration is detected, merge into a single event record. Keep the higher-confidence
-source as primary. Append both `source_id`s to a `sources` array.
+On match: merge into the **earlier** event (its `id` survives — identity must be stable
+for links and history), union sources, promote to confirmed, record the latency
+observation.
 
-## Data Model — `events` table (SQLite)
+### Latency instrumentation **(v2 — the moat, measured)**
+- `first_social_at` / `official_at` store the **source-published timestamps** (Reddit
+  `created_utc`, agency publish/update times), *not* our fetch time — poll-interval
+  noise of ±5 min per side would drown a median lead of similar magnitude.
+- When a source item has no usable published timestamp, `fetched_at` substitutes and the
+  observation is **flagged** (`latency_flagged=1`) so headline statistics exclude it.
+- `lead_seconds = official_at − first_social_at` when both exist. Accumulated from day
+  one; published only when statistically real (Phase 2).
+
+## Data model **(v2)**
+
+Migrations: numbered idempotent SQL files in `migrations/`, applied in order at startup,
+recorded in `schema_migrations`. All timestamps are ISO 8601 UTC; wall-clock *display*
+is always `America/Chicago`, regardless of device.
 
 ```sql
 CREATE TABLE events (
-  id                 TEXT PRIMARY KEY,        -- UUID generated at extraction time
-  city               TEXT DEFAULT 'chicago',
-  event_type         TEXT NOT NULL,           -- accident | construction | transit_disruption |
-                                               -- police_activity | civic_event | weather_impact | other
-  location_name      TEXT,                    -- human-readable location from Claude
-  lat                REAL,                    -- from Nominatim
-  lng                REAL,                    -- from Nominatim
-  geocode_failed     INTEGER DEFAULT 0,       -- 1 if Nominatim returned no result
-  summary            TEXT NOT NULL,
-  impact_roads       TEXT,                    -- low | moderate | high
-  impact_transit     TEXT,                    -- low | moderate | high
-  impact_pedestrian  TEXT,                    -- low | moderate | high
-  confidence         REAL NOT NULL,           -- 0.0 to 1.0
-  sources            TEXT,                    -- JSON array of source IDs
-  estimated_duration TEXT,                    -- short | hours | ongoing | unknown
-  detected_at        TEXT NOT NULL,           -- ISO 8601 UTC
-  updated_at         TEXT NOT NULL,           -- ISO 8601 UTC
-  expires_at         TEXT                     -- ISO 8601 UTC (null = no known end time)
+  id               TEXT PRIMARY KEY,        -- UUID; survives merges (earlier event wins)
+  city             TEXT NOT NULL DEFAULT 'chicago',
+  event_type       TEXT NOT NULL,           -- informational tag (taxonomy in the prompt)
+  mode             TEXT,                    -- cta_rail | cta_bus | metra | road | other
+  lines            TEXT NOT NULL DEFAULT '[]',  -- JSON array: ["Red"], ["66"], ["UP-N"]
+  station          TEXT,                    -- canonical gazetteer name, or NULL
+  location_name    TEXT,                    -- human-readable place
+  lat              REAL,                    -- only when geo_kind IN (station, point)
+  lng              REAL,
+  geo_kind         TEXT NOT NULL DEFAULT 'none',  -- station | line | point | none
+  severity         TEXT,                    -- minor | major | severe
+  scope            TEXT NOT NULL DEFAULT 'acute', -- acute | chronic | planned
+  verification     TEXT NOT NULL,           -- reported | confirmed (survives clearance)
+  summary          TEXT NOT NULL,
+  score_source     REAL NOT NULL DEFAULT 0, -- components; freshness computed at read
+  score_extraction REAL NOT NULL DEFAULT 0,
+  score_corrob     REAL NOT NULL DEFAULT 0,
+  detected_at      TEXT NOT NULL,
+  updated_at       TEXT NOT NULL,
+  cleared_at       TEXT,                    -- lifecycle; duration = cleared_at − detected_at
+  first_social_at  TEXT,                    -- latency (source-published timestamps)
+  official_at      TEXT,
+  latency_flagged  INTEGER NOT NULL DEFAULT 0  -- 1 = a timestamp fell back to fetch time
+);
+
+-- Source of truth for which source items feed which event. Backs three mechanisms:
+-- dedup ("seen this item/hash?"), update routing ("whose event is this changed item?"),
+-- and clearance ("which active events have no source seen in 2 successful polls?").
+-- There is deliberately NO events.sources JSON column — serialization joins this table.
+CREATE TABLE event_sources (
+  event_id      TEXT NOT NULL REFERENCES events(id),
+  source_type   TEXT NOT NULL,              -- cta | metra | reddit (explicit, never inferred)
+  source_id     TEXT NOT NULL,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at  TEXT NOT NULL,              -- touched every successful poll the item persists
+  last_hash     TEXT NOT NULL,
+  published_at  TEXT,                       -- the source's own timestamp, when available
+  PRIMARY KEY (source_type, source_id)
+);
+
+-- Every fetched item + its extraction, forever: the eval corpus and the replay log.
+CREATE TABLE raw_items (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_type  TEXT NOT NULL,
+  source_id    TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  fetched_at   TEXT NOT NULL,
+  payload      TEXT NOT NULL,               -- raw item JSON
+  extraction   TEXT,                        -- what Claude returned (NULL = dropped pre-call)
+  review       TEXT,                        -- correct | wrong_event | wrong_location | wrong_summary
+  UNIQUE (source_type, source_id, content_hash)
 );
 ```
 
-Retention policy: delete rows where `detected_at < NOW() - 24 hours`. Run cleanup at the start of
-each poll cycle.
+**Retention: nothing is deleted.** The v1 24-hour `DELETE` is abolished — it was
+destroying the durations/latency archive that constitutes the long-term moat. "Active"
+is a query (`cleared_at IS NULL`), not a lifecycle. SQLite handles years of this volume.
 
-## FastAPI Endpoints
+## API
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/events` | GET | Returns all active events (confidence ≥ 0.4). Query params: `min_confidence`, `event_type`, `limit`. |
-| `/events/stream` | GET | SSE endpoint. Streams `new_event` and `update_event` messages. |
-| `/events/{id}` | GET | Returns a single event by ID including full source list. |
-| `/status` | GET | Pipeline health: `last_poll_at`, `events_active`, `sources_healthy` (CTA, Metra, Reddit booleans). |
+| `/events` | GET | Active events. Params: `min_confidence`, `event_type`, `limit` (v2 adds `mode`, `line`, `scope`). Serialization computes confidence + freshness at read time and joins sources. |
+| `/events/stream` | GET | SSE: `new_event`, `update_event`, `clear_event`, `remove_event`, `ping` (30 s heartbeat). |
+| `/events/{id}` | GET | Single event, full source records. |
+| `/lines` | GET **(v2)** | Per-line verdicts from **active acute** events only → `good`, `minor`, `major`, `severe` + driving event ids. Chronic/planned counts reported separately. Powers the verdict board. |
+| `/status` | GET | `last_poll_at`, `next_poll_at`, `events_active`, per-source health. |
+| `/review` | GET **(v2)** | Eval surface: raw item beside its extraction, one-tap verdicts writing `raw_items.review`. Internal; not linked from the product. |
 
-### SSE Event Format
-```
-data: {"type": "new_event", "event": { ...event object... }}
-data: {"type": "update_event", "event": { ...event object... }}
-data: {"type": "ping"}   // heartbeat every 30s
-```
+The frontend must handle `clear_event`/`remove_event` by transitioning and removing
+markers — the v1 client leaked markers forever because removals were never broadcast.
 
-## Frontend — Leaflet Map
+## Frontend contract (Phase 1 — see dev-plan)
 
-- Vanilla HTML/JS/CSS, no framework, no build step.
-- Leaflet.js + OpenStreetMap tiles.
-- EventSource API for SSE.
-- Served as static files by FastAPI.
+- **Verdict board**: one row per line, official line color, status word (from acute
+  events only). The primary surface; the map is the detail view.
+- **Map (1.3)**: station markers for `geo_kind=station`, point markers for `point`,
+  a list panel for `none`. State styling: confirmed = solid · reported = dashed/hollow ·
+  cleared = greyed with duration. Age maps continuously to opacity.
+- **Line-segment geometry (1.3b, optional polish)**: route polylines colored by line and
+  weighted by state. Decoupled from the Phase 1 gate — the board already expresses
+  line-level status; this is the fiddliest rendering work and must not block shipping.
+- **Design tokens** in one `:root` block: official CTA line colors (semantic primitives —
+  e.g. Red `#C60C30`, Blue `#00A1DE`), state colors with darker text-safe siblings
+  (bright tokens are for map geometry and badges; verify AA before using any as text),
+  two typefaces (condensed display for verdicts/badges, workhorse sans for body), a 4 px
+  spacing scale, one radius.
+- **Motion = liveness only**: new events pop, updates pulse once, clears desaturate and
+  fade; transform/opacity only; gated on `prefers-reduced-motion`.
 
-| Aspect | Behavior |
+## Testing
+
+The pure core — scorer/verification mapping, the corroboration matcher, the clearance
+decision, gazetteer name matching — is kept side-effect-free (clock injected, no I/O) and
+covered by pytest. Each Phase 0 step's "done when" includes its tests passing. This is
+the part of the system the product's honesty rests on; it is the part that gets frozen
+clocks and edge cases, not the HTTP plumbing.
+
+## Known constraints & decisions
+
+| Constraint / decision | Rationale |
 |---|---|
-| Default view | Chicago center (41.8781, −87.6298), zoom 11 |
-| Marker color | Red = high impact / Amber = moderate / Gray = low |
-| Marker opacity | Full (1.0) for confidence ≥ 0.6 / Dimmed (0.4) for 0.4–0.59 |
-| Unverified badge | Small "?" overlay on dimmed markers |
-| Popup on click | event_type, summary, impact levels, confidence score, sources, detected_at |
-| Auto-update | SSE pushes trigger `addLayer()` / `updateMarker()` without reload |
-| Status bar | Top-right: last updated timestamp + source health indicators |
-
-## Project Structure
-
-```
-streetwise/
-├── backend/
-│   ├── main.py          # FastAPI app + SSE endpoint
-│   ├── pipeline.py       # Main poll cycle orchestrator
-│   ├── fetchers/
-│   │   ├── cta.py        # CTA XML fetcher
-│   │   ├── metra.py       # Metra RSS fetcher
-│   │   └── reddit.py      # Reddit PRAW fetcher
-│   ├── extractor.py       # Claude API call + JSON parsing
-│   ├── geocoder.py        # Nominatim wrapper
-│   ├── scorer.py           # Confidence scoring logic
-│   ├── store.py            # SQLite read/write + cleanup
-│   └── models.py            # Pydantic models for Event
-├── frontend/
-│   ├── index.html         # Map UI
-│   ├── map.js              # Leaflet init + SSE client
-│   └── style.css
-├── .env                      # ANTHROPIC_API_KEY, REDDIT_* credentials
-├── requirements.txt
-└── README.md
-```
-
-## Known Constraints & Decisions
-
-| Constraint / Decision | Rationale |
-|---|---|
-| No auth on API endpoints | Solo validation tool. Add auth before any public exposure. |
-| SQLite not Postgres | Zero ops for solo use. Swap to Postgres when multi-user/multi-process. |
-| Nominatim not Google Maps | Free tier sufficient for MVP. Switch if geocoding accuracy is a blocker. |
-| No verification agent | Corroboration via simple proximity + time matching in `scorer.py`. Revisit if false positives are high. |
-| Recency is a tiebreaker only | Max +0.05. Affects display ordering, not map visibility. |
-| SSE not WebSockets | Simpler, sufficient for one-directional push. Upgrade if bidirectional comms needed. |
-| Vanilla JS frontend | No build step, no dependencies. Ship fast, validate data quality first. |
+| No auth on API endpoints | Solo tool. Add before any public exposure. |
+| SQLite, not Postgres | Zero ops for one process. Revisit at multi-user. |
+| Numbered idempotent migrations | A database we never delete cannot be hand-ALTERed safely. |
+| Gazetteer before geocoder | Deterministic, instant, offline for the dominant (transit) case; Nominatim is fallback-only, rate-limited, off the critical path. |
+| No Chicago-center fallback pin | A wrong point is worse than no point. `geo_kind=none` events are list-only. |
+| Verification ⊥ lifecycle ⊥ scope | Three orthogonal axes. Conflating them (v1's single enum) corrupts the durations archive and drowns verdicts in elevator notices. |
+| Verdicts from acute events only | Chronic items on a board = permanent "Minor" = alarm fatigue = product death. |
+| Feed-down ≠ clearance | Clearance evaluation only runs for sources whose current poll succeeded. |
+| States in UI, scores internal | Riders act on "Confirmed", not "0.75". |
+| Freshness at read time | Ingest-time recency is a constant, hence meaningless (v1 bug). |
+| Nothing deleted | Durations + latency archive is the moat; it cannot be backfilled. |
+| Source `type` stored explicitly | The v1 ID-shape heuristic could silently mis-corroborate — a trust bug. |
+| Latency from source timestamps | Fetch-time measurement carries ±poll-interval noise per side; flagged fallbacks are excluded from headline stats. |
+| Merges keep the earlier event's id | Stable identity for links/history; v1 could duplicate rows by keeping the newer id. |
+| SSE, not WebSockets | One-directional push is all we need. |
+| Vanilla JS, no build step | Ship fast; the surface is small. Revisit only if it hurts. |
+| Metra fetch needs a browser UA | CloudFront blocks default `curl` UA (verified live). |
+| All display times America/Chicago | Storage is UTC; wall-clock display pins to the city, not the device. |
+| Status strip states real cadence | "Checked 2m ago", never a fake live-wire claim. |
