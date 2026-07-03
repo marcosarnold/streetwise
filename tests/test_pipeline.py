@@ -45,10 +45,21 @@ REDDIT_EXTRACTED = {
 }
 
 
+def _fake_resolve(geo):
+    """Stand-in for locate.resolve_location: a fixed point, or nothing when geo=None."""
+    def resolve(station, lines, location_string):
+        if geo is None:
+            return {"geo_kind": "none", "lat": None, "lng": None, "station": None,
+                    "location_name": location_string}
+        return {"geo_kind": "point", "lat": geo["lat"], "lng": geo["lng"],
+                "station": None, "location_name": location_string}
+    return resolve
+
+
 def _wire_cta(monkeypatch, alerts, extracted, geo={"lat": 42.019, "lng": -87.673}):
     monkeypatch.setattr(pipeline, "fetch_cta_alerts", lambda: alerts)
-    monkeypatch.setattr(pipeline, "extract_events", lambda batch: extracted if batch else [])
-    monkeypatch.setattr(pipeline, "geocode", lambda s: geo)
+    monkeypatch.setattr(pipeline, "extract_events", lambda batch, *a: extracted if batch else [])
+    monkeypatch.setattr(pipeline, "resolve_location", _fake_resolve(geo))
 
 
 def test_cta_cycle_writes_v2_rows(tmp_db, monkeypatch):
@@ -61,6 +72,11 @@ def test_cta_cycle_writes_v2_rows(tmp_db, monkeypatch):
     assert event["geo_kind"] == "point"
     assert event["scope"] == "acute"
     assert event["confidence"] == 0.7  # 0.4 source + 0.3 extraction; no dead recency bonus
+    # CTA's XML carries no publish time (checked 2026-07-02): official_at falls back
+    # to fetch time and the observation is flagged out of headline latency stats.
+    assert event["official_at"] is not None and event["first_social_at"] is None
+    assert event["latency_flagged"] == 1
+    assert isinstance(event["age_minutes"], int)  # read-time freshness, never stored
     assert event["sources"] == [{
         "type": "cta", "id": "1001",
         "first_seen_at": event["sources"][0]["first_seen_at"],
@@ -81,7 +97,7 @@ def test_second_poll_dedupes_and_touches_last_seen(tmp_db, monkeypatch):
 
     calls = []
     monkeypatch.setattr(pipeline, "extract_events",
-                        lambda batch: calls.append(batch) or [])
+                        lambda batch, *a: calls.append(batch) or [])
     with store.get_connection() as conn:
         before = conn.execute("SELECT last_seen_at FROM event_sources").fetchone()[0]
 
@@ -105,8 +121,9 @@ def test_geocode_failure_means_no_pin(tmp_db, monkeypatch):
 def test_solo_reddit_is_reported(tmp_db, monkeypatch):
     monkeypatch.setattr(pipeline, "fetch_reddit_posts", lambda: [REDDIT_POST])
     monkeypatch.setattr(pipeline, "extract_events",
-                        lambda batch: [REDDIT_EXTRACTED] if batch else [])
-    monkeypatch.setattr(pipeline, "geocode", lambda s: {"lat": 42.019, "lng": -87.673})
+                        lambda batch, *a: [REDDIT_EXTRACTED] if batch else [])
+    monkeypatch.setattr(pipeline, "resolve_location",
+                        _fake_resolve({"lat": 42.019, "lng": -87.673}))
 
     stored = pipeline.run_reddit_cycle()
     event = store.get_event(stored[0]["id"])
@@ -117,8 +134,9 @@ def test_solo_reddit_is_reported(tmp_db, monkeypatch):
 def test_corroboration_merges_promotes_and_keeps_earlier_id(tmp_db, monkeypatch):
     monkeypatch.setattr(pipeline, "fetch_reddit_posts", lambda: [REDDIT_POST])
     monkeypatch.setattr(pipeline, "extract_events",
-                        lambda batch: [REDDIT_EXTRACTED] if batch else [])
-    monkeypatch.setattr(pipeline, "geocode", lambda s: {"lat": 42.019, "lng": -87.673})
+                        lambda batch, *a: [REDDIT_EXTRACTED] if batch else [])
+    monkeypatch.setattr(pipeline, "resolve_location",
+                        _fake_resolve({"lat": 42.019, "lng": -87.673}))
     reddit_stored = pipeline.run_reddit_cycle()
     reddit_id = reddit_stored[0]["id"]
 
@@ -155,9 +173,11 @@ def test_changed_alert_updates_its_event(tmp_db, monkeypatch):
     geocalls = []
     monkeypatch.setattr(pipeline, "fetch_cta_alerts", lambda: [escalated_alert])
     monkeypatch.setattr(pipeline, "extract_events",
-                        lambda batch: [escalated_extract] if batch else [])
-    monkeypatch.setattr(pipeline, "geocode",
-                        lambda s: geocalls.append(s) or {"lat": 1.0, "lng": 2.0})
+                        lambda batch, *a: [escalated_extract] if batch else [])
+    monkeypatch.setattr(
+        pipeline, "resolve_location",
+        lambda st, ln, s: geocalls.append(s) or _fake_resolve({"lat": 1.0, "lng": 2.0})(st, ln, s),
+    )
 
     stored = pipeline.run_cta_cycle()
     assert stored[0]["_is_new"] is False
@@ -174,7 +194,7 @@ def test_changed_alert_updates_its_event(tmp_db, monkeypatch):
 
     # Third poll, same escalated content: fully deduped, Claude never sees it again.
     calls = []
-    monkeypatch.setattr(pipeline, "extract_events", lambda batch: calls.append(batch) or [])
+    monkeypatch.setattr(pipeline, "extract_events", lambda batch, *a: calls.append(batch) or [])
     assert pipeline.run_cta_cycle() == []
     assert calls == [[]]
 
@@ -202,7 +222,7 @@ def test_changed_item_yielding_no_event_is_acknowledged(tmp_db, monkeypatch):
     resolved = dict(CTA_ALERT, short_description="Service has resumed.")
     monkeypatch.setattr(pipeline, "fetch_cta_alerts", lambda: [resolved])
     calls = []
-    monkeypatch.setattr(pipeline, "extract_events", lambda batch: calls.append(batch) or [])
+    monkeypatch.setattr(pipeline, "extract_events", lambda batch, *a: calls.append(batch) or [])
 
     assert pipeline.run_cta_cycle() == []
     assert len(calls[0]) == 1  # the changed item reached Claude once…
@@ -219,20 +239,126 @@ def test_degrading_update_falls_below_display_threshold(tmp_db, monkeypatch):
     # it, nothing is deleted or special-cased.
     monkeypatch.setattr(pipeline, "fetch_reddit_posts", lambda: [REDDIT_POST])
     monkeypatch.setattr(pipeline, "extract_events",
-                        lambda batch: [REDDIT_EXTRACTED] if batch else [])
-    monkeypatch.setattr(pipeline, "geocode", lambda s: {"lat": 42.019, "lng": -87.673})
+                        lambda batch, *a: [REDDIT_EXTRACTED] if batch else [])
+    monkeypatch.setattr(pipeline, "resolve_location",
+                        _fake_resolve({"lat": 42.019, "lng": -87.673}))
     event_id = pipeline.run_reddit_cycle()[0]["id"]
 
     edited = dict(REDDIT_POST, selftext="nvm, might have been nothing")
     vague = dict(REDDIT_EXTRACTED, extraction_confidence="low")
     monkeypatch.setattr(pipeline, "fetch_reddit_posts", lambda: [edited])
-    monkeypatch.setattr(pipeline, "extract_events", lambda batch: [vague] if batch else [])
+    monkeypatch.setattr(pipeline, "extract_events", lambda batch, *a: [vague] if batch else [])
 
     stored = pipeline.run_reddit_cycle()
     assert stored[0]["_is_new"] is False
     assert store.get_active_events(min_confidence=0.4) == []  # hidden from the default view
     event = store.get_event(event_id)
     assert event["confidence"] == 0.2  # 0.2 source + 0.0 extraction — archived, not erased
+
+
+def test_lines_overlap_corroborates_without_coordinates(tmp_db, monkeypatch):
+    # The A6 payoff: no points anywhere, different event_type labels — lines overlap
+    # is the anchor. v1 would have missed this entirely.
+    reddit_x = dict(REDDIT_EXTRACTED, event_type="delay", lines=["Red"],
+                    location_string=None)
+    monkeypatch.setattr(pipeline, "fetch_reddit_posts", lambda: [REDDIT_POST])
+    monkeypatch.setattr(pipeline, "extract_events",
+                        lambda batch, *a: [reddit_x] if batch else [])
+    monkeypatch.setattr(pipeline, "resolve_location", _fake_resolve(None))
+    reddit_id = pipeline.run_reddit_cycle()[0]["id"]
+
+    cta_x = dict(CTA_EXTRACTED, event_type="incident", lines=["Red"],
+                 location_string=None)
+    _wire_cta(monkeypatch, [CTA_ALERT], [cta_x], geo=None)
+    stored = pipeline.run_cta_cycle()
+
+    assert stored[0]["id"] == reddit_id
+    event = store.get_event(reddit_id)
+    assert event["verification"] == "confirmed"
+    assert event["lines"] == ["Red"]
+    assert len(store.get_active_events(min_confidence=0.0)) == 1
+
+
+def test_reddit_then_metra_yields_unflagged_lead_observation(tmp_db, monkeypatch):
+    from datetime import datetime, timezone
+
+    social_published = datetime(2026, 7, 2, 10, 0, tzinfo=timezone.utc)
+    post = dict(REDDIT_POST, created_utc=social_published.timestamp())
+    reddit_x = dict(REDDIT_EXTRACTED, lines=["UP-N"], location_string=None)
+    monkeypatch.setattr(pipeline, "fetch_reddit_posts", lambda: [post])
+    monkeypatch.setattr(pipeline, "extract_events",
+                        lambda batch, *a: [reddit_x] if batch else [])
+    monkeypatch.setattr(pipeline, "resolve_location", _fake_resolve(None))
+    event_id = pipeline.run_reddit_cycle()[0]["id"]
+
+    metra_alert = {"guid": "DevAPI-77", "title": "UP-N delays",
+                   "description": "Trains delayed.", "line": "UP-N",
+                   "pubDate": "2026-07-02T10:20:00+00:00", "link": "x"}
+    metra_x = dict(CTA_EXTRACTED, source_id="DevAPI-77", event_type="delay",
+                   lines=["UP-N"], location_string=None)
+    monkeypatch.setattr(pipeline, "fetch_metra_alerts", lambda: [metra_alert])
+    monkeypatch.setattr(pipeline, "extract_events",
+                        lambda batch, *a: [metra_x] if batch else [])
+    pipeline.run_metra_cycle()
+
+    event = store.get_event(event_id)
+    assert event["first_social_at"] == social_published.isoformat()  # Reddit created_utc
+    assert event["official_at"] == "2026-07-02T10:20:00+00:00"       # Metra pubDate
+    assert event["latency_flagged"] == 0  # both sides source-published: headline-grade
+    lead = (datetime.fromisoformat(event["official_at"])
+            - datetime.fromisoformat(event["first_social_at"])).total_seconds()
+    assert lead == 1200.0  # the street knew 20 minutes first — the moat, measured
+
+
+def test_v2_fields_flow_into_the_record(tmp_db, monkeypatch):
+    v2_extract = dict(
+        CTA_EXTRACTED,
+        event_type="accessibility",
+        mode="cta_rail",
+        lines=["Red"],
+        station="Howard",
+        severity="minor",
+        scope="chronic",
+        is_clearance=False,
+    )
+    _wire_cta(monkeypatch, [CTA_ALERT], [v2_extract])
+    stored = pipeline.run_cta_cycle()
+
+    event = store.get_event(stored[0]["id"])
+    assert event["mode"] == "cta_rail"
+    assert event["lines"] == ["Red"]
+    assert event["severity"] == "minor"
+    assert event["scope"] == "chronic"  # the verdict board will ignore this one (1.2)
+
+
+def test_clearance_items_never_create_events(tmp_db, monkeypatch):
+    resumed = dict(
+        CTA_EXTRACTED,
+        summary="Red Line service has resumed near Howard.",
+        is_clearance=True,
+    )
+    _wire_cta(monkeypatch, [CTA_ALERT], [resumed])
+    assert pipeline.run_cta_cycle() == []
+    assert store.get_active_events(min_confidence=0.0) == []
+
+    # Capture-only: the extraction is archived for /review even though no event exists.
+    with store.get_connection() as conn:
+        raw = conn.execute("SELECT extraction FROM raw_items").fetchone()
+    assert json.loads(raw["extraction"])["is_clearance"] is True
+
+
+def test_update_can_escalate_severity(tmp_db, monkeypatch):
+    _wire_cta(monkeypatch, [CTA_ALERT], [dict(CTA_EXTRACTED, severity="minor")])
+    event_id = pipeline.run_cta_cycle()[0]["id"]
+
+    worse_alert = dict(CTA_ALERT, short_description="Red Line suspended.")
+    worse = dict(CTA_EXTRACTED, event_type="suspension", severity="severe",
+                 summary="Red Line suspended near Howard.")
+    _wire_cta(monkeypatch, [worse_alert], [worse])
+    pipeline.run_cta_cycle()
+
+    event = store.get_event(event_id)
+    assert event["severity"] == "severe"  # an escalation is often exactly this field
 
 
 def test_same_source_type_never_corroborates(tmp_db, monkeypatch):

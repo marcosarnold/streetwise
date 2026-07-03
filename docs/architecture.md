@@ -99,6 +99,11 @@ All verified working as described; gotchas preserved from live debugging.
 - The feed's own `Impact` classification ("Planned Work", "Elevator Status", "Service
   Disruption"…) is passed through to the extractor as the primary hint for `scope` —
   the agency already classifies chronic/planned for us.
+- **No publish timestamp** (full field inventory checked 2026-07-02; `EventStart` is
+  the disruption's schedule, not the alert's — planned work "starts" days after it
+  posts). CTA-side latency observations therefore always use the flagged fetch-time
+  fallback; unflagged lead-time pairs come from Reddit (`created_utc`) + Metra
+  (`data-last-updated`).
 - Born confirmed (official source)
 
 ### Metra Service Alerts
@@ -124,15 +129,22 @@ All verified working as described; gotchas preserved from live debugging.
 - Posts only for MVP; comments in daily threads (often the fastest signal) are a Phase 2
   sensor upgrade.
 
-### GTFS static (the gazetteer) **(v2)**
-- CTA GTFS: `https://www.transitchicago.com/downloads/sch_data/google_transit.zip`
-- Metra GTFS: via Metra's developer program (free credentials — verify current access
-  path at metra.com/developers)
-- Fetched **offline** by `scripts/build_gazetteer.py`, not at runtime. Produces:
-  - `data/gazetteer.json` — every station/stop: canonical name, aliases, lat/lng, routes
-  - `data/lines.geojson` — route polylines + official colors (CTA line colors are the
-    design system's semantic primitives)
-- Regenerate quarterly or when agencies announce service changes.
+### The gazetteer (built 0.4; sources probed live 2026-07-02)
+- **CTA rail stations**: the City of Chicago "List of 'L' Stops" dataset (`8pix-ypme`) —
+  144 parent stations with names, per-line booleans, exact coordinates; ~176 KB, no key.
+  Chosen over raw CTA GTFS (a 98 MB zip whose station→route join needs `stop_times.txt`)
+  — best public dataset over GTFS purism.
+- **Metra stations**: Metra's GTFS API (`gtfsapi.metra.com`) is credential-gated; every
+  public candidate URL 404/503s. The build fetches Metra stations when
+  `METRA_GTFS_ACCESS_KEY`/`METRA_GTFS_SECRET_KEY` are set (free — metra.com/developers)
+  and warns + ships CTA-only otherwise; Metra alerts fall back to Nominatim meanwhile.
+- **Line metadata** (`lines` section): CTA rail ids/names/official brand colors (the
+  design system's semantic primitives) + the 11 Metra line ids/names (colors null until
+  verified against Metra brand assets — honesty over completeness).
+- Built **offline** by `scripts/build_gazetteer.py` → `data/gazetteer.json` (committed).
+  Regenerate quarterly or on announced service changes.
+- **`lines.geojson` (route polylines) is deferred with its only consumer, 1.3b** — the
+  verdict board expresses line-level status without geometry.
 
 ## Claude extraction
 
@@ -145,12 +157,16 @@ All verified working as described; gotchas preserved from live debugging.
 | Input | JSON array of raw items |
 | Output | JSON array of structured events |
 
-### System prompt **(v2 — replaces the v1 prompt verbatim)**
+### System prompt (v2 — shipped 0.5; keep verbatim-synced with `backend/extractor.py`)
 
 ```
-You are a transit disruption extractor for Chicagoland. You receive raw items from CTA
-alerts, Metra alerts, or Reddit posts and return structured disruption events as a JSON
-array.
+You are a transit disruption extractor for Chicagoland. You receive a JSON object
+{"source": "cta" | "metra" | "reddit", "items": [...]} — raw items from CTA alerts,
+Metra alerts, or Reddit posts — and return structured disruption events as a JSON array.
+
+Input hints: CTA items carry "routes" (the agency's affected route ids) and "impact"
+(the agency's own classification, e.g. "Planned Work", "Elevator Status" — trust it
+for scope). Metra items carry "line" (the line's site slug).
 
 For each current, real-world disruption, return an object with these exact fields:
  - event_type: one of [delay, suspension, reroute, station_issue, accessibility,
@@ -173,9 +189,8 @@ For each current, real-world disruption, return an object with these exact field
    chronic (long-running conditions — elevator/escalator outages, accessibility
    notices, construction lasting weeks) |
    planned (scheduled work announced in advance)
-   CTA items carry the agency's own Impact classification — trust it when present.
- - summary: one plain-language sentence, present tense, that a rider on a platform would
-   find useful. Name the line and the consequence. No agency jargon.
+ - summary: one plain-language sentence, present tense, that a rider on a platform
+   would find useful. Name the line and the consequence. No agency jargon.
  - is_clearance: true if this item announces that a disruption has ENDED or service has
    resumed; false otherwise.
  - extraction_confidence: high | medium | low
@@ -190,9 +205,18 @@ Drop items that are questions, opinions, or historical references with no curren
 ```
 
 Design notes on the prompt:
+- **Model output is untrusted input.** `_sanitize_event` coerces every enum to its
+  known set before anything enters the pipeline; only unusable events (no source_id or
+  no summary) are rejected outright. Deliberate defaults: unknown scope → acute (hiding
+  a real disruption is worse than a noisy verdict row); unknown confidence → low
+  (unearned certainty is never granted).
+- **`is_clearance` items never create events** — a "service resumed" notice is not a
+  disruption. The raw_items archive is the capture; the item is skipped before both the
+  update and create paths, and the vanish detector owns the ending.
 - `lines` + `station` make the gazetteer join deterministic — the model names entities,
   the gazetteer supplies coordinates. Free-text geocoding becomes the fallback, not the
-  path.
+  path. Deterministic hints ride the batch: CTA `service_id` routes + `impact`, Metra's
+  per-line slug.
 - `scope` exists because the official feeds are dominated by chronic items on a quiet
   day; without it, verdicts drown in elevator notices (see *Verdicts*).
 - `is_clearance` is capture-only for MVP (see lifecycle).
@@ -219,8 +243,18 @@ Resolution order, recorded in `geo_kind`:
    is abolished** — a wrong point is worse than no point (under v1 behavior, a Kenosha
    elevator outage rendered as a Loop incident).
 
-Nominatim sits off the poll cycle's critical path: `geo_kind=none` events render
-immediately in lists and upgrade via `update_event` if a later geocode succeeds.
+Two rules inside the matcher (`backend/locate.py`):
+- **Ambiguity resolves to nothing, not a guess.** CTA has four "Western" stations (two
+  on the Blue Line alone); a name still ambiguous after filtering by the event's
+  `lines` falls through to the next tier — the no-fake-pins rule applied to names.
+- The `location_string` is also tried against the gazetteer (normalized: comma tails,
+  "Station"/"Metra"/parens noise stripped) — extractor strings like "Howard Station,
+  Chicago, IL" join instantly even before prompt v2 provides a `station` field.
+
+**Nominatim stays synchronous** (decision, 0.4): with the gazetteer eating the transit
+volume it serves only rare road/unmatched events, and a deferred-geocode worker (queue,
+retry bookkeeping, out-of-cycle broadcasts) is complexity a rare path doesn't justify.
+Revisit if the 0.7 validation week shows cycle-duration or rate-limit pressure.
 
 ## Scoring, verification, corroboration
 
@@ -263,8 +297,11 @@ observation.
   noise of ±5 min per side would drown a median lead of similar magnitude.
 - When a source item has no usable published timestamp, `fetched_at` substitutes and the
   observation is **flagged** (`latency_flagged=1`) so headline statistics exclude it.
-- `lead_seconds = official_at − first_social_at` when both exist. Accumulated from day
-  one; published only when statistically real (Phase 2).
+- `lead_seconds = official_at − first_social_at` is **derived at read/analysis time,
+  not stored** — both anchors are on the event row. Accumulated from day one; published
+  only when statistically real (Phase 2). Given CTA's missing publish time, the
+  headline-grade (unflagged) corpus is Reddit×Metra; Reddit×CTA pairs are collected but
+  flagged.
 
 ## Data model **(v2)**
 

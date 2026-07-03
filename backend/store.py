@@ -131,9 +131,17 @@ def get_event(event_id: str) -> dict | None:
 
 
 def _hydrate(conn, events: list[dict]) -> list[dict]:
-    """Parse JSON columns and join typed source records onto each event."""
+    """Parse JSON columns, join typed source records, and stamp read-time freshness."""
+    now = datetime.now(timezone.utc)
     for e in events:
         e["lines"] = json.loads(e["lines"] or "[]")
+        # Freshness is computed at read, never stored (the v1 ingest-time recency was a
+        # dead constant). The frontend maps age to opacity/ordering; verification is
+        # untouched by age.
+        detected = datetime.fromisoformat(e["detected_at"])
+        if detected.tzinfo is None:
+            detected = detected.replace(tzinfo=timezone.utc)
+        e["age_minutes"] = max(0, int((now - detected).total_seconds() // 60))
     ids = [e["id"] for e in events]
     if not ids:
         return events

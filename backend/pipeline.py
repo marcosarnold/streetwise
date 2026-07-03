@@ -15,7 +15,7 @@ from backend.extractor import extract_events
 from backend.fetchers.cta import fetch_cta_alerts
 from backend.fetchers.metra import fetch_metra_alerts
 from backend.fetchers.reddit import fetch_reddit_posts
-from backend.geocoder import geocode
+from backend.locate import resolve_location
 from backend.scorer import (
     CORROBORATION_SCORE,
     are_corroborating,
@@ -45,6 +45,23 @@ CONFIRM_THRESHOLD = 0.6
 OFFICIAL_SOURCES = {"cta", "metra"}
 
 
+def _published_at(source_type: str, raw_item: dict) -> str | None:
+    """The source's OWN published timestamp — the latency measurement anchor (A4).
+    Fetch-time fallback (and its flag) is the caller's job. Returns None for CTA: the
+    alerts XML carries no publish time (full field inventory checked 2026-07-02), and
+    EventStart is the disruption's schedule, not the alert's — using it would poison
+    the latency data (planned work "starts" days after it posts)."""
+    if source_type == "metra":
+        return raw_item.get("pubDate") or None  # data-last-updated: a real publish time
+    if source_type == "reddit":
+        created = raw_item.get("created_utc")
+        try:
+            return datetime.fromtimestamp(float(created), tz=timezone.utc).isoformat()
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def run_cta_cycle() -> list[dict]:
     """Run one poll cycle for the CTA source. Returns the events stored/updated."""
     return _run_cycle(
@@ -55,8 +72,10 @@ def run_cta_cycle() -> list[dict]:
             "id": a["alert_id"],
             "headline": a["headline"],
             "description": a["short_description"],
+            # The agency's own affected-route ids — a deterministic `lines` hint.
+            "routes": a["service_id"],
             # The agency's own classification ("Planned Work", "Elevator Status"…) —
-            # the primary hint for `scope` once prompt v2 lands (step 0.5).
+            # the primary hint for `scope`.
             "impact": a["impact"],
             "event_start": a["event_start"],
             "event_end": a["event_end"],
@@ -75,6 +94,7 @@ def run_metra_cycle() -> list[dict]:
             "headline": a["title"],
             "description": a["description"],
             "pub_date": a["pubDate"],
+            "line": a.get("line"),  # which line's modal served it — a `lines` hint
             "link": a["link"],
         },
     )
@@ -135,7 +155,7 @@ def _run_cycle(
     touch_sources_seen(source_type, unchanged, now_iso)
 
     batch = [batch_mapper(items_by_id[sid]) for sid in new + changed]
-    extracted = extract_events(batch)
+    extracted = extract_events(batch, source_type)
 
     # The extraction CALL succeeded: acknowledge every changed item's new content now,
     # even those that yielded no event — an unacknowledged hash would re-extract every
@@ -151,6 +171,13 @@ def _run_cycle(
     for event in extracted:
         sid = str(event.get("source_id", ""))
         update_raw_extraction(source_type, sid, hashes.get(sid), json.dumps(event))
+
+        # A "service resumed" item is not a disruption — creating an event from it
+        # would be actively wrong, and rewriting an existing event's summary with it
+        # would too. The archive line above IS the capture (is_clearance is
+        # capture-only per the decision log); the vanish detector owns endings.
+        if event.get("is_clearance"):
+            continue
 
         s_src = source_score(source_type)
         s_ext = extraction_score(event["extraction_confidence"])
@@ -177,22 +204,25 @@ def _run_cycle(
         if s_src + s_ext < DROP_THRESHOLD:
             continue  # raw item + extraction stay archived for /review
 
-        geo = geocode(event["location_string"]) if event.get("location_string") else None
+        # Gazetteer first, Nominatim fallback, or nothing (backend/locate.py). The
+        # station/lines fields are extractor-provided from prompt v2 (0.5) onward;
+        # until then the location_string itself often names a station and still joins.
+        resolved = resolve_location(
+            event.get("station"), event.get("lines"), event.get("location_string")
+        )
 
         record = {
             "id": str(uuid.uuid4()),
             "event_type": event["event_type"],
-            # mode/lines/station/severity arrive with prompt v2 (0.5); scope defaults
-            # to acute so verdict behavior is unchanged until the extractor can tell.
-            "mode": None,
-            "lines": [],
-            "station": None,
-            "severity": None,
-            "scope": "acute",
-            "location_name": event.get("location_string"),
-            "lat": geo["lat"] if geo else None,
-            "lng": geo["lng"] if geo else None,
-            "geo_kind": "point" if geo else "none",  # no fake pins — none means list-only
+            "mode": event.get("mode"),
+            "lines": event.get("lines") or [],
+            "station": resolved["station"],
+            "severity": event.get("severity"),
+            "scope": event.get("scope") or "acute",
+            "location_name": resolved["location_name"],
+            "lat": resolved["lat"],
+            "lng": resolved["lng"],
+            "geo_kind": resolved["geo_kind"],  # no fake pins — none means list-only
             "verification": "confirmed"
             if (source_type in OFFICIAL_SOURCES or s_src + s_ext >= CONFIRM_THRESHOLD)
             else "reported",
@@ -204,22 +234,30 @@ def _run_cycle(
             "updated_at": now_iso,
         }
 
-        match = None
-        if geo:  # unlocated events can't distance-match (station/line matching: 0.6)
-            match = _find_corroborating_event(
-                record, source_type, active_events, source_types_by_event
-            )
+        # Latency anchors (A4): the source's own published timestamp when it has one;
+        # fetch-time otherwise, flagged so headline statistics can exclude it.
+        published = _published_at(source_type, items_by_id.get(sid, {}))
+        official = source_type in OFFICIAL_SOURCES
+        record["official_at"] = (published or now_iso) if official else None
+        record["first_social_at"] = (published or now_iso) if not official else None
+        record["latency_flagged"] = 0 if published else 1
+
+        match = _find_corroborating_event(
+            record, source_type, active_events, source_types_by_event
+        )
 
         if match is None:
             upsert_event(record)
-            link_source(record["id"], source_type, sid, now_iso, hashes.get(sid, ""))
+            link_source(record["id"], source_type, sid, now_iso,
+                        hashes.get(sid, ""), published)
             record["_is_new"] = True
             active_events.append(record)
             source_types_by_event[record["id"]] = {source_type}
         else:
             record = _merge_events(match, record, now_iso)
             upsert_event(record)
-            link_source(record["id"], source_type, sid, now_iso, hashes.get(sid, ""))
+            link_source(record["id"], source_type, sid, now_iso,
+                        hashes.get(sid, ""), published)
             record["_is_new"] = False
             active_events = [e for e in active_events if e["id"] != record["id"]] + [record]
             source_types_by_event.setdefault(record["id"], set()).add(source_type)
@@ -234,39 +272,27 @@ def _run_cycle(
     return stored
 
 
+_MATCH_KEYS = ("lines", "station", "lat", "lng", "detected_at")
+
+
 def _find_corroborating_event(
     record: dict,
     source_type: str,
     active_events: list[dict],
     source_types_by_event: dict[str, set[str]],
 ) -> dict | None:
+    """First active event from a DIFFERENT source type that shares an anchor with the
+    record (lines/station/proximity — scorer.are_corroborating). No coordinate gate:
+    two line-anchored events with no point at all can corroborate on lines overlap."""
+    candidate = {k: record.get(k) for k in _MATCH_KEYS}
     for existing in active_events:
-        if existing.get("lat") is None:
-            continue
-
         # Source types come from event_sources — explicit, never inferred from ID shape
         # (the v1 heuristic could silently mis-corroborate: a trust bug).
         existing_types = source_types_by_event.get(existing["id"], set())
         if not existing_types or source_type in existing_types:
             continue
-
-        candidate = {
-            "source_type": source_type,
-            "event_type": record["event_type"],
-            "lat": record["lat"],
-            "lng": record["lng"],
-            "detected_at": record["detected_at"],
-        }
-        other = {
-            "source_type": next(iter(existing_types)),
-            "event_type": existing["event_type"],
-            "lat": existing["lat"],
-            "lng": existing["lng"],
-            "detected_at": existing["detected_at"],
-        }
-        if are_corroborating(candidate, other):
+        if are_corroborating(candidate, {k: existing.get(k) for k in _MATCH_KEYS}):
             return existing
-
     return None
 
 
@@ -283,14 +309,22 @@ def _apply_update(existing: dict, event: dict, s_ext: float, now_iso: str) -> di
 
     loc = event.get("location_string")
     if loc and loc != existing.get("location_name"):
-        geo = geocode(loc)
-        updated["location_name"] = loc
-        updated["lat"] = geo["lat"] if geo else None
-        updated["lng"] = geo["lng"] if geo else None
-        updated["geo_kind"] = "point" if geo else "none"
+        resolved = resolve_location(event.get("station"), event.get("lines"), loc)
+        updated["location_name"] = resolved["location_name"]
+        updated["station"] = resolved["station"]
+        updated["lat"] = resolved["lat"]
+        updated["lng"] = resolved["lng"]
+        updated["geo_kind"] = resolved["geo_kind"]
 
     updated["event_type"] = event["event_type"]
     updated["summary"] = event["summary"]
+    # An escalation is often precisely a severity/scope change — the new read wins
+    # where it speaks; silence preserves what we knew.
+    for key in ("mode", "severity", "scope"):
+        if event.get(key):
+            updated[key] = event[key]
+    if event.get("lines"):
+        updated["lines"] = event["lines"]
     updated["score_extraction"] = s_ext
     updated["updated_at"] = now_iso
     return updated
@@ -311,11 +345,19 @@ def _merge_events(existing: dict, new_record: dict, now_iso: str) -> dict:
         existing if existing.get("lat") is not None else new_record
     )
 
-    merged = {c: existing.get(c) for c in (
-        "id", "city", "event_type", "mode", "lines", "station",
-        "detected_at", "first_social_at", "official_at", "latency_flagged",
-    )}
+    merged = {c: existing.get(c) for c in ("id", "city", "event_type", "detected_at")}
     merged.update({
+        # Anchors enrich, never erase: a CTA corroborator usually brings the lines/
+        # station a Reddit-born event lacked.
+        "mode": existing.get("mode") or new_record.get("mode"),
+        "lines": existing.get("lines") or new_record.get("lines") or [],
+        "station": existing.get("station") or new_record.get("station"),
+        # Latency (A4): each side keeps its earliest timestamp; the pair is flagged if
+        # EITHER side had to fall back to fetch time (headline stats exclude flagged).
+        "official_at": existing.get("official_at") or new_record.get("official_at"),
+        "first_social_at": existing.get("first_social_at") or new_record.get("first_social_at"),
+        "latency_flagged": int(bool(existing.get("latency_flagged"))
+                               or bool(new_record.get("latency_flagged"))),
         "location_name": primary.get("location_name"),
         "lat": located.get("lat"),
         "lng": located.get("lng"),

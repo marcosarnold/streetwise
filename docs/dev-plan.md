@@ -67,7 +67,10 @@ ANTHROPIC_API_KEY=sk-ant-...
 REDDIT_CLIENT_ID=...
 REDDIT_CLIENT_SECRET=...
 REDDIT_USER_AGENT=streetwise/1.0 by u/yourusername
-# METRA_GTFS_* — add if Metra's GTFS download requires developer credentials (verify at metra.com/developers)
+# Metra GTFS is credential-gated (verified 2026-07-02) — free keys at metra.com/developers.
+# Until set, the gazetteer builds CTA-only and Metra alerts fall back to Nominatim.
+METRA_GTFS_ACCESS_KEY=...
+METRA_GTFS_SECRET_KEY=...
 ```
 
 ## Current status
@@ -115,7 +118,50 @@ REDDIT_USER_AGENT=streetwise/1.0 by u/yourusername
   leak fix — clear/remove kept as distinct paths so 1.6 can add the cleared-fade).
   25 pytest cases green, including frozen-clock lifecycle decisions and a
   dead-feed-clears-nothing integration test.
-- **Next: 0.4 — GTFS gazetteer + location resolution order.**
-- Known v1 defects mapped to remaining steps: real location resolution (0.4);
-  `mode`/`lines`/`station`/`severity`/`scope` extraction (0.5); read-time freshness +
-  matcher fix + latency capture (0.6).
+- **0.4 — done (2026-07-02).** `scripts/build_gazetteer.py` → `data/gazetteer.json`
+  (committed): 144 CTA rail stations from the city's L-Stops dataset (chosen over the
+  98 MB raw GTFS), CTA official line colors, the 11 Metra line ids/names. Metra
+  *stations* are credential-gated (`METRA_GTFS_ACCESS_KEY`/`SECRET_KEY` — free at
+  metra.com/developers; **open user action item** alongside Reddit creds) — until set,
+  Metra alerts fall back to Nominatim. `backend/locate.py` resolves
+  station → line → Nominatim point → none; ambiguous names (four "Westerns", two on the
+  Blue Line alone) resolve to nothing, never a guess; extractor strings like "Howard
+  Station, Chicago, IL" join the gazetteer today, before prompt v2. Verified: 4 real
+  resolutions in 0.7 ms with Nominatim monkeypatched to explode. Two scope decisions
+  (decision log): `lines.geojson` deferred with its only consumer (1.3b); Nominatim
+  stays synchronous (the deferred-geocode worker is complexity a now-rare path doesn't
+  justify — revisit if 0.7 shows pressure). 30 pytest cases green.
+- **0.5 — done (2026-07-02).** Prompt v2 shipped in `extractor.py` (2048 tokens; input
+  wrapped as `{"source", "items"}` with deterministic hints: CTA `service_id` routes +
+  `impact`, Metra's per-line slug — the Metra fetcher now keeps the line it was already
+  iterating). Model output is untrusted input: `_sanitize_event` coerces every enum
+  (unknown scope → acute, unknown confidence → low); only events with no source_id or
+  no summary are rejected. `is_clearance` extractions never create or update events —
+  archived in raw_items (the capture), skipped before both routing paths. Updates carry
+  severity/scope/mode/lines (an escalation is often exactly a severity change).
+  **Live validation passed**: 12 real CTA alerts → 9 events; every station joined the
+  gazetteer (incl. "Western" disambiguated via `lines=["Brown"]` and the slash-name
+  "State/Lake"); all Elevator Status items came back `scope=chronic`; summaries read
+  like rider texts; "Added Service" items correctly dropped. Live proof of the A1
+  finding: today's entire CTA feed is chronic — acute-only verdicts (1.2) will read
+  "Good service" where v1 showed a degraded system. `scope=planned` not yet observed
+  live (no Planned Work item landed in the sample) — verify during 0.7. 39 pytest
+  cases green.
+- **0.6 — done (2026-07-02).** Matcher reworked per A6 (`scorer.are_corroborating`):
+  30-min window + any anchor — lines overlap, same station, or ≤ 500 m; `event_type`
+  equality gone (labels differ across sources); source-type disjointness stays in the
+  pipeline via `event_sources`. Coordinate gates removed: two line-anchored events with
+  no points corroborate on lines overlap (tested). Merges coalesce anchors ("enrich,
+  never erase" — a CTA corroborator brings the lines/station a Reddit event lacked) and
+  latency fields. Latency (A4): `official_at`/`first_social_at` from source-published
+  timestamps — Reddit `created_utc`, Metra `pubDate`; **CTA's XML has no publish time**
+  (field inventory checked live; `EventStart` is the disruption's schedule and would
+  poison the data), so CTA-side observations always carry the flagged fetch-time
+  fallback and the unflagged headline corpus is Reddit×Metra. `lead_seconds` derived,
+  not stored. Staged Reddit→Metra pair test: unflagged 20-minute lead measured
+  end-to-end. Read-time freshness: `age_minutes` stamped at serialization in
+  `_hydrate`. 44 pytest cases green.
+- **Next: 0.7 — `/review` eval surface + the validation week. Gates Phase 1.**
+  Prerequisites now load-bearing: **Reddit credentials** (still placeholders — without
+  them the validation week has no social signal, no corroboration, no latency corpus)
+  and optionally Metra GTFS keys (gazetteer coverage for Metra stations).

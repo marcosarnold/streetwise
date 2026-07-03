@@ -117,3 +117,13 @@ Major pivots, with date and rationale.
   let lingering Reddit posts block real clearances. "Vanished" is defined as ≥ 2
   successful polls since `last_seen_at` (append-only `poll_log`), making the feed-down
   guard structural rather than an `if`.
+- **2026-07-02** — **Gazetteer scope (0.4):** (a) CTA stations sourced from the city's
+  L-Stops open dataset rather than raw GTFS — a 176 KB keyless JSON beats a 98 MB zip
+  whose station→route join needs `stop_times.txt`; (b) Metra's GTFS is
+  credential-gated (all public URLs 404/503, probed live), so the build is env-gated
+  and ships CTA-only until keys exist — Metra alerts fall back to Nominatim, honestly;
+  (c) `lines.geojson` deferred with its only consumer (1.3b); (d) Nominatim stays
+  synchronous — post-gazetteer it serves only rare road events, and a deferred-geocode
+  worker is complexity that path doesn't justify (revisit trigger: 0.7 validation-week
+  cycle-duration or rate-limit pressure); (e) ambiguous station names resolve to
+  nothing, never a guess — the no-fake-pins rule applied to name matching.

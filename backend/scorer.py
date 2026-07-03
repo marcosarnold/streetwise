@@ -80,31 +80,34 @@ def haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> floa
 
 
 def are_corroborating(event_a: dict, event_b: dict) -> bool:
-    """Check whether two events corroborate each other.
+    """Do two events describe the same incident? (Matcher amended 2026-07-01 review, A6.)
 
-    Both events are dicts with keys: source_type, event_type, lat, lng, detected_at.
+    Both events are dicts with keys: lines, station, lat, lng, detected_at.
+    Rule: within the time window AND sharing any anchor — overlapping lines, the same
+    station, or points within 500 m. Deliberately NOT required: equal event_type (a
+    derailment arrives from CTA as "incident" and from Reddit as "delay" — demanding
+    equal labels starves the corroboration and latency datasets) and source-type
+    disjointness (the pipeline enforces that from event_sources, the explicit record).
     """
-    if event_a["source_type"] == event_b["source_type"]:
-        return False
-
-    if event_a["event_type"] != event_b["event_type"]:
-        return False
-
-    distance = haversine_meters(
-        event_a["lat"], event_a["lng"], event_b["lat"], event_b["lng"]
-    )
-    if distance > CORROBORATION_DISTANCE_METERS:
-        return False
-
     time_a = datetime.fromisoformat(event_a["detected_at"])
     time_b = datetime.fromisoformat(event_b["detected_at"])
     if time_a.tzinfo is None:
         time_a = time_a.replace(tzinfo=timezone.utc)
     if time_b.tzinfo is None:
         time_b = time_b.replace(tzinfo=timezone.utc)
+    if abs((time_a - time_b).total_seconds()) / 60 > CORROBORATION_WINDOW_MINUTES:
+        return False
 
-    delta_minutes = abs((time_a - time_b).total_seconds()) / 60
-    return delta_minutes <= CORROBORATION_WINDOW_MINUTES
+    if set(event_a.get("lines") or []) & set(event_b.get("lines") or []):
+        return True
+    if event_a.get("station") and event_a.get("station") == event_b.get("station"):
+        return True
+    if None not in (event_a.get("lat"), event_a.get("lng"),
+                    event_b.get("lat"), event_b.get("lng")):
+        return haversine_meters(
+            event_a["lat"], event_a["lng"], event_b["lat"], event_b["lng"]
+        ) <= CORROBORATION_DISTANCE_METERS
+    return False
 
 
 if __name__ == "__main__":

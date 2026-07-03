@@ -70,6 +70,10 @@ def _fetch_line_alerts(line: str) -> list[dict]:
             "description": _clean_html(description),
             "pubDate": pub_date,
             "link": f"{BASE_URL}/service_alerts/modal/{line}",
+            # Which line's modal served this alert — a deterministic `lines` hint for
+            # the extractor. System-wide alerts repeat across modals; guid dedup keeps
+            # the first occurrence.
+            "line": line,
         })
 
     return alerts
