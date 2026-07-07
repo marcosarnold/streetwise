@@ -8,11 +8,18 @@ from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend import lifecycle, pipeline
-from backend.store import get_active_events, get_event, init_db
+from backend import lifecycle, locate, pipeline, verdicts
+from backend.store import (
+    get_active_events,
+    get_event,
+    get_review_items,
+    init_db,
+    review_stats,
+    set_review,
+)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -152,6 +159,52 @@ def status():
         "events_active": len(get_active_events()),
         "sources_healthy": app_state["sources_healthy"],
     }
+
+
+@app.get("/lines")
+def list_line_verdicts():
+    """The verdict board: one state word per line, derived from acute events only."""
+    return verdicts.line_verdicts(locate.get_lines(), get_active_events())
+
+
+# Committed data assets the map renders directly (built by scripts/build_*.py).
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+
+@app.get("/lines.geojson")
+def line_geometry():
+    return FileResponse(DATA_DIR / "lines.geojson", media_type="application/geo+json")
+
+
+@app.get("/gazetteer.json")
+def gazetteer():
+    return FileResponse(DATA_DIR / "gazetteer.json", media_type="application/json")
+
+
+# ---- /review eval surface (0.7): the instrument that grades the validation week.
+# Local founder tool, unauthenticated like everything else in the MVP (see PRD
+# non-goals: auth arrives before any public exposure, and this route with it).
+
+@app.get("/api/review/items")
+def review_items(unreviewed: bool = True, limit: int = 50):
+    return get_review_items(only_unreviewed=unreviewed, limit=limit)
+
+
+@app.post("/api/review/{item_id}")
+def review_verdict(item_id: int, body: dict):
+    verdict = (body or {}).get("verdict")
+    try:
+        updated = set_review(item_id, verdict)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Raw item not found")
+    return {"id": item_id, "review": verdict}
+
+
+@app.get("/api/review/stats")
+def review_statistics():
+    return review_stats()
 
 
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

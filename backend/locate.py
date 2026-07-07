@@ -38,6 +38,12 @@ def set_gazetteer(data: dict) -> None:
         _index.setdefault(_norm(st["name"]), []).append(st)
 
 
+def get_lines() -> dict:
+    """The gazetteer's line metadata (ids, names, official colors), for /lines."""
+    _ensure_loaded()
+    return _gaz.get("lines", {})
+
+
 def _ensure_loaded() -> None:
     if _gaz is not None:
         return

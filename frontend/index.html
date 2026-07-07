@@ -2,22 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Streetwise — Chicagoland Mobility</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Streetwise — Is my line okay right now?</title>
+  <meta name="description" content="Live CTA and Metra service verdicts for Chicago — one honest answer per line." />
 
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="map"></div>
 
-  <div id="status-bar">
-    <div id="status-time">Last updated: —</div>
-    <div id="status-sources">
-      <span class="source-dot" data-source="cta">CTA</span>
-      <span class="source-dot" data-source="metra">Metra</span>
-      <span class="source-dot" data-source="reddit">Reddit</span>
+  <header class="top">
+    <div class="wordmark">Streetwise <span class="city">CHI</span></div>
+    <button id="board-toggle" class="boardbtn" aria-expanded="false" aria-controls="board">
+      Lines <span class="n zero" id="board-count">0</span>
+    </button>
+    <div class="statusbar">
+      <span class="beacon stale" id="beacon" title="live connection"></span>
+      <span id="status-time">connecting…</span>
+      <span class="srcdots" id="status-sources">
+        <span class="source-dot" data-source="cta">CTA</span>
+        <span class="source-dot" data-source="metra">Metra</span>
+        <span class="source-dot" data-source="reddit">Reddit</span>
+      </span>
     </div>
+  </header>
+
+  <!-- The verdict board: the product's core answer. Populated from /lines. -->
+  <aside class="board" id="board" aria-label="Line status"></aside>
+
+  <!-- Verdict-first event card; replaces map popups. -->
+  <section class="sheet" id="sheet" aria-live="polite">
+    <button class="sheet-close" id="sheet-close" aria-label="Close">×</button>
+    <div class="kicker" id="sheet-kicker"></div>
+    <div class="head" id="sheet-head"></div>
+    <p class="summary" id="sheet-summary"></p>
+    <div class="meta" id="sheet-meta"></div>
+  </section>
+
+  <!-- Designed empty state: no acute events is the product working. -->
+  <div class="allclear" id="allclear" hidden>
+    <div class="big">Good service</div>
+    <p id="allclear-sub">No active disruptions reported.</p>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

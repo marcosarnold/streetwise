@@ -184,5 +184,68 @@ METRA_GTFS_API_KEY=...
   Follow-up noted for later, not now: the authenticated GTFS-rt *alerts* feed is a
   candidate replacement for the per-line AJAX scrape in `fetchers/metra.py` (real
   publish timestamps, one request instead of eleven) — a 0.7+ decision, not a blocker.
-- **Next: 0.7 — `/review` eval surface + the validation week (official feeds). Gates
-  Phase 1.**
+- **0.7 instrument built (2026-07-07); validation week begins.** `/review` at
+  `review.html`: raw item beside extraction, one-tap verdicts (keys 1–4) into
+  `raw_items.review` using the vocabulary fixed in migration 001; for items Claude
+  ignored, "correct" grades the *decision to ignore* (false negatives count).
+  `store.review_stats()` computes one number per measurable PRD criterion —
+  judged accuracy, gazetteer resolution rate, unflagged latency, clearance counts +
+  durations (the moat's first rows), score histogram, scope mix — served at
+  `/api/review/stats` and shown atop the review page. Verdicts are overwritable
+  (re-judging is legitimate). First live cycle after the Metra gazetteer landed:
+  38 events, **gazetteer rate 1.0** (every event station- or line-anchored, zero
+  Nominatim), 10 unflagged latency rows (Metra `pubDate`), and `scope=planned`
+  finally observed live (9 items — the 0.5 open question, closed). Two things the
+  week must now measure honestly: (a) the day-one score histogram is a single bar
+  (38 × 0.70 — every official single-source event with a high-confidence extraction
+  lands there); criterion 6 needs either differentiated paths showing up over the
+  week (medium extractions at 0.55, corroborated officials at 1.1) or a rethink of
+  the criterion under an official-only MVP; (b) clearance counts start at zero —
+  cleared events can only accumulate from here. **Gate review runs after one full
+  week of continuous operation + grading.** Run: `python3 -m uvicorn
+  backend.main:app` from the repo root, left running; grade at
+  `localhost:8000/review.html` daily.
+- **Phase 1 surface built (2026-07-07) — in parallel with the 0.7 validation week**
+  (founder decision: the week runs unattended, so building the surface alongside it
+  costs the gate nothing; the gate still decides Phase 2). Direction: **paper & ink**
+  — first built as CTA-signage dark, reversed same day on founder eyes-on-pixels
+  review ("brighter, closer to curb"): warm paper surfaces, ink borders, Anton for
+  verdicts + Hanken Grotesk body, curb's own text-safe state colors; CTA/Metra line
+  colors remain the accent system, so the Chicago identity lives in the content, not
+  the chrome. Patterns adapted from a curb.guide study (same church: one static page,
+  vanilla JS + Leaflet, no build): design tokens with the WCAG geometry/text split
+  (inverted for dark — brighter `-text` siblings), hard offset shadows + pressed
+  `:active` states, verdict-first hierarchy, designed empty states,
+  `prefers-reduced-motion` respected. Shipped: **(1.1)** tokens in `style.css`;
+  **(1.2)** `/lines` + `backend/verdicts.py` — pure derivation, acute-only (A1),
+  worst-severity wins, CTA's own service vocabulary, unknown line ids ignored
+  (5 tests); **(1.3)** verdict board (problems first; all-good lines collapse to one
+  quiet row; mobile toggle chip with problem count); **(1.4)** verdict-first bottom
+  sheet replaces popups (state word → summary → typed chips: Confirmed/Reported,
+  source labels, age; all event text via `textContent`); **(1.5)** honest chrome
+  ("checked N min ago" ticking every 30 s, dormant sources hidden) + "Good service"
+  empty-state card — the usual state of the map, designed as the product working;
+  **(1.6)** liveness = SSE-heartbeat beacon pulse + new-marker drop-in, real signals
+  only. Markers: severity color, chronic = small/muted, reported = hollow ring.
+  First live render: 19 board rows, 2 real Metra "Minor delays", 27 chronic items
+  correctly silent. Deferred within Phase 1: line-geometry map rendering (1.3b,
+  unchanged) and the cleared-event fade (needs `clear_event` observed live).
+  54 pytest cases green. **The founder-user gate (criterion 7) now has a surface to
+  judge.**
+- **1.3b un-deferred and shipped (2026-07-07)** — founder call, prompted by the right
+  observation: 21 of 38 live events were `geo_kind=line` with no coordinates,
+  invisible on the map (including both acute Metra delays). The fix is curb's real
+  density lesson: paint the *infrastructure*, not just events.
+  `scripts/build_lines_geojson.py` → `data/lines.geojson` (134 KB, committed): CTA
+  routes from the city's `xbyr-jnvx` segment dataset — shared track parsed from the
+  free-text `lines` property so every line carries its full route including the Loop;
+  Metra inbound shapes from the public GTFS zip (branches → MultiLineString parts).
+  All 19 lines render as the map's base layer in their official colors — identity
+  color always (repainting the Red Line amber would gaslight riders); state shows as
+  treatment: good = thin/55%, warn/down = full-strength stroke over a thick
+  amber/red casing. Clicking a line opens its worst active event's sheet — the home
+  for pointless (literally) line events. Station dots (all 385, gazetteer-sourced,
+  name+lines tooltip) appear at zoom ≥ 13 so the city overview stays calm. Served via
+  `/lines.geojson` + `/gazetteer.json` FileResponses. Line identity (names/colors)
+  stays single-sourced from the gazetteer through `/lines`; the geojson carries
+  geometry only. 54 tests green.

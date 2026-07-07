@@ -315,6 +315,135 @@ def update_raw_extraction(source_type: str, source_id: str, chash: str | None,
         )
 
 
+# ---------------------------------------------------------------- review / eval (0.7)
+
+# The four-verdict vocabulary fixed in migration 001. For items whose extraction is
+# NULL (Claude returned no event), "correct" means *correctly ignored* — that's how
+# false negatives enter the accuracy number, not just false positives.
+REVIEW_VERDICTS = ("correct", "wrong_event", "wrong_location", "wrong_summary")
+
+
+def get_review_items(only_unreviewed: bool = True, limit: int = 50) -> list[dict]:
+    """Raw item + extraction pairs for grading, newest first."""
+    sql = ("SELECT id, source_type, source_id, content_hash, fetched_at,"
+           " payload, extraction, review FROM raw_items")
+    if only_unreviewed:
+        sql += " WHERE review IS NULL"
+    sql += " ORDER BY fetched_at DESC, id DESC LIMIT ?"
+    with get_connection() as conn:
+        rows = [dict(r) for r in conn.execute(sql, (limit,)).fetchall()]
+    for r in rows:
+        r["payload"] = json.loads(r["payload"])
+        r["extraction"] = json.loads(r["extraction"]) if r["extraction"] else None
+    return rows
+
+
+def set_review(item_id: int, verdict: str) -> bool:
+    """Record a verdict. Overwriting is allowed — re-judging is legitimate."""
+    if verdict not in REVIEW_VERDICTS:
+        raise ValueError(f"verdict must be one of {REVIEW_VERDICTS}")
+    with get_connection() as conn:
+        cur = conn.execute(
+            "UPDATE raw_items SET review = ? WHERE id = ?", (verdict, item_id)
+        )
+        return cur.rowcount == 1
+
+
+def review_stats() -> dict:
+    """One measured number per PRD success criterion derivable from the DB.
+
+    Read-only aggregate over raw_items + events; the validation week's exit gate
+    reads this, so every key maps to a criterion (see prd.md Success criteria).
+    """
+    with get_connection() as conn:
+        total, reviewed = conn.execute(
+            "SELECT COUNT(*), COUNT(review) FROM raw_items"
+        ).fetchone()
+        verdicts = dict(conn.execute(
+            "SELECT review, COUNT(*) FROM raw_items"
+            " WHERE review IS NOT NULL GROUP BY review"
+        ).fetchall())
+
+        geo_kinds = dict(conn.execute(
+            "SELECT geo_kind, COUNT(*) FROM events GROUP BY geo_kind"
+        ).fetchall())
+        scopes = dict(conn.execute(
+            "SELECT scope, COUNT(*) FROM events GROUP BY scope"
+        ).fetchall())
+        # Criterion 6: a scorer stuck on one value isn't measuring anything.
+        score_histogram = {
+            f"{row[0]:.2f}": row[1]
+            for row in conn.execute(
+                f"SELECT {_CONFIDENCE_SQL} AS c, COUNT(*) FROM events"
+                " GROUP BY c ORDER BY c"
+            ).fetchall()
+        }
+        # Criterion 3: publication → visibility, measurable only where the source
+        # publishes a timestamp (Metra pubDate; CTA has none, so its rows carry the
+        # flagged fetch-time fallback and are excluded here).
+        latency_rows = [
+            (datetime.fromisoformat(d) - datetime.fromisoformat(o)).total_seconds()
+            for o, d in conn.execute(
+                "SELECT official_at, detected_at FROM events"
+                " WHERE official_at IS NOT NULL AND latency_flagged = 0"
+            ).fetchall()
+        ]
+        # Criterion 5 + the durations moat preview: only real clearances carry a
+        # duration claim; expired events are counted but never given one.
+        cleared = conn.execute(
+            "SELECT COUNT(*) FROM events WHERE cleared_at IS NOT NULL"
+        ).fetchone()[0]
+        expired = conn.execute(
+            "SELECT COUNT(*) FROM events WHERE expired_at IS NOT NULL"
+        ).fetchone()[0]
+        durations = [
+            (datetime.fromisoformat(c) - datetime.fromisoformat(d)).total_seconds() / 60
+            for d, c in conn.execute(
+                "SELECT detected_at, cleared_at FROM events"
+                " WHERE cleared_at IS NOT NULL"
+            ).fetchall()
+        ]
+
+    def _median(xs: list[float]) -> float | None:
+        if not xs:
+            return None
+        xs = sorted(xs)
+        mid = len(xs) // 2
+        return xs[mid] if len(xs) % 2 else (xs[mid - 1] + xs[mid]) / 2
+
+    resolved = geo_kinds.get("station", 0) + geo_kinds.get("line", 0)
+    total_events = sum(geo_kinds.values())
+    return {
+        "review": {
+            "total_items": total,
+            "reviewed": reviewed,
+            "unreviewed": total - reviewed,
+            "verdicts": verdicts,
+            # Criterion 1 (≥ 90%): judged accuracy over what's been graded so far.
+            "accuracy": round(verdicts.get("correct", 0) / reviewed, 3) if reviewed else None,
+        },
+        "location": {
+            # Criterion 2 (≥ 90% station/line via gazetteer; zero fabricated points).
+            "geo_kinds": geo_kinds,
+            "gazetteer_rate": round(resolved / total_events, 3) if total_events else None,
+        },
+        "latency": {
+            # Criterion 3 (visible ≤ 1 poll cycle after publication), unflagged rows only.
+            "measurable_events": len(latency_rows),
+            "median_seconds": _median(latency_rows),
+            "max_seconds": max(latency_rows) if latency_rows else None,
+        },
+        "lifecycle": {
+            # Criterion 5; duration stats are the moat's first real rows.
+            "cleared": cleared,
+            "expired": expired,
+            "median_duration_minutes": _median(durations),
+        },
+        "scores": {"histogram": score_histogram},  # criterion 6
+        "scopes": scopes,  # criterion 8's input mix (verdict derivation is Phase 1)
+    }
+
+
 if __name__ == "__main__":
     init_db()
     print(f"Database ready at {DB_PATH}")
