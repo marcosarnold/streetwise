@@ -6,19 +6,19 @@ Sources (probed live 2026-07-02; see docs/architecture.md):
   station names, parent ids, per-line booleans, exact coordinates, ~300 rows, no key.
   Chosen over raw CTA GTFS (98 MB zip; the station→route join needs stop_times.txt).
 - CTA rail line colors: official brand constants (stable for decades).
-- Metra stations: Metra's GTFS API requires developer credentials. When
-  METRA_GTFS_ACCESS_KEY / METRA_GTFS_SECRET_KEY are set (register at
-  metra.com/developers), stations are fetched and included; otherwise the build warns
-  and ships CTA-only — Metra alerts fall back to Nominatim until then.
-- Metra line ids/names are public constants and are always included (color deliberately
-  null until verified against Metra brand assets — honesty over completeness).
+- Metra stations + lines: the static GTFS zip at schedules.metrarail.com/gtfs/schedule.zip
+  (public, no key — verified 2026-07-06; the METRA_GTFS_API_KEY bearer token is only for
+  the realtime feeds at gtfspublic.metrarr.com). ~470 KB with all join tables, so the
+  station→line mapping is computed properly (stop_times → trips → routes), and line
+  colors come from Metra's own published route_color values.
 
 Run: python3 scripts/build_gazetteer.py   (regenerate quarterly / on service changes)
 """
 
+import csv
+import io
 import json
-import os
-import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,19 +41,7 @@ CTA_RAIL_LINES = [
     {"id": "Yellow", "name": "Yellow Line", "color": "#F9E300"},
 ]
 
-METRA_LINES = [
-    {"id": "UP-N", "name": "Union Pacific North", "color": None},
-    {"id": "UP-NW", "name": "Union Pacific Northwest", "color": None},
-    {"id": "UP-W", "name": "Union Pacific West", "color": None},
-    {"id": "MD-N", "name": "Milwaukee District North", "color": None},
-    {"id": "MD-W", "name": "Milwaukee District West", "color": None},
-    {"id": "NCS", "name": "North Central Service", "color": None},
-    {"id": "BNSF", "name": "BNSF Railway", "color": None},
-    {"id": "HC", "name": "Heritage Corridor", "color": None},
-    {"id": "RI", "name": "Rock Island District", "color": None},
-    {"id": "ME", "name": "Metra Electric", "color": None},
-    {"id": "SWS", "name": "SouthWest Service", "color": None},
-]
+METRA_GTFS_ZIP = "https://schedules.metrarail.com/gtfs/schedule.zip"
 
 # L-stops dataset boolean field -> route id.
 _LINE_FIELDS = {"red": "Red", "blue": "Blue", "g": "Green", "brn": "Brown",
@@ -81,49 +69,56 @@ def build_cta_stations() -> list[dict]:
     return sorted(stations.values(), key=lambda s: s["name"])
 
 
-def build_metra_stations() -> list[dict]:
-    key = os.environ.get("METRA_GTFS_ACCESS_KEY", "").strip()
-    secret = os.environ.get("METRA_GTFS_SECRET_KEY", "").strip()
-    if not key or not secret:
-        print("WARN: METRA_GTFS_ACCESS_KEY/SECRET_KEY not set — building without Metra "
-              "stations (Metra alerts fall back to Nominatim). Register at "
-              "metra.com/developers, add the keys to .env, and rebuild.",
-              file=sys.stderr)
-        return []
-    r = httpx.get("https://gtfsapi.metra.com/gtfs/schedule/stops",
-                  auth=(key, secret), timeout=30).raise_for_status()
-    out = []
-    for stop in r.json():
-        out.append({
-            "name": stop["stop_name"],
-            "agency": "metra",
-            "lat": float(stop["stop_lat"]),
-            "lng": float(stop["stop_lon"]),
-            # Per-station route mapping needs the stop_times join; empty routes just
-            # means Metra names skip line-based disambiguation (rarely needed — Metra
-            # station names are far less duplicated than CTA's).
-            "routes": [],
-        })
-    return sorted(out, key=lambda s: s["name"])
+def _read_gtfs_csv(zf: zipfile.ZipFile, name: str) -> list[dict]:
+    # Metra's GTFS pads fields with spaces after every comma; strip keys and values.
+    with zf.open(name) as f:
+        reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8-sig"))
+        return [{(k or "").strip(): (v or "").strip() for k, v in row.items()}
+                for row in reader]
+
+
+def build_metra() -> tuple[list[dict], list[dict]]:
+    """Return (lines, stations) from Metra's public static GTFS zip."""
+    r = httpx.get(METRA_GTFS_ZIP, timeout=60,
+                  headers={"User-Agent": "Mozilla/5.0"}).raise_for_status()
+    zf = zipfile.ZipFile(io.BytesIO(r.content))
+
+    lines = sorted(
+        ({"id": rt["route_id"], "name": rt["route_long_name"],
+          "color": f"#{rt['route_color']}" if rt.get("route_color") else None}
+         for rt in _read_gtfs_csv(zf, "routes.txt")),
+        key=lambda ln: ln["id"])
+
+    trip_route = {t["trip_id"]: t["route_id"] for t in _read_gtfs_csv(zf, "trips.txt")}
+    stop_routes: dict[str, set[str]] = {}
+    for st in _read_gtfs_csv(zf, "stop_times.txt"):
+        route = trip_route.get(st["trip_id"])
+        if route:
+            stop_routes.setdefault(st["stop_id"], set()).add(route)
+
+    stations = sorted(
+        ({"name": stop["stop_name"], "agency": "metra",
+          "lat": float(stop["stop_lat"]), "lng": float(stop["stop_lon"]),
+          "routes": sorted(stop_routes.get(stop["stop_id"], set()))}
+         for stop in _read_gtfs_csv(zf, "stops.txt")),
+        key=lambda s: s["name"])
+    return lines, stations
 
 
 def main():
-    from dotenv import load_dotenv
-    load_dotenv(ROOT / ".env")
-
     cta = build_cta_stations()
-    metra = build_metra_stations()
+    metra_lines, metra = build_metra()
 
     gazetteer = {
         "built_at": datetime.now(timezone.utc).isoformat(),
-        "lines": {"cta_rail": CTA_RAIL_LINES, "metra": METRA_LINES},
+        "lines": {"cta_rail": CTA_RAIL_LINES, "metra": metra_lines},
         "stations": cta + metra,
     }
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(json.dumps(gazetteer, indent=1))
     print(f"Wrote {OUT.relative_to(ROOT)}: {len(cta)} CTA stations, "
           f"{len(metra)} Metra stations, "
-          f"{len(CTA_RAIL_LINES) + len(METRA_LINES)} lines.")
+          f"{len(CTA_RAIL_LINES) + len(metra_lines)} lines.")
 
 
 if __name__ == "__main__":

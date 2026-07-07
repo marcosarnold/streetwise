@@ -146,6 +146,11 @@ async function refreshStatus() {
       timeEl.textContent = "Last updated: pending first poll…";
     }
 
+    // A source absent from the response is dormant (deliberately unconfigured) —
+    // hide its dot entirely. A permanently grey dot would read as "broken".
+    document.querySelectorAll(".source-dot").forEach((dot) => {
+      dot.style.display = dot.dataset.source in status.sources_healthy ? "" : "none";
+    });
     for (const [source, healthy] of Object.entries(status.sources_healthy)) {
       const dot = document.querySelector(`.source-dot[data-source="${source}"]`);
       if (!dot) continue;

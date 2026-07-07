@@ -361,6 +361,27 @@ def test_update_can_escalate_severity(tmp_db, monkeypatch):
     assert event["severity"] == "severe"  # an escalation is often exactly this field
 
 
+def test_reddit_cycle_is_credential_gated(tmp_db, monkeypatch):
+    # Social signal is deferred (decision log 2026-07-02): without credentials the
+    # cycle must never run; with them it self-activates. Deferred, not deleted.
+    _wire_cta(monkeypatch, [], [])
+    monkeypatch.setattr(pipeline, "fetch_metra_alerts", lambda: [])
+
+    def boom():
+        raise AssertionError("reddit fetched without credentials")
+    monkeypatch.setattr(pipeline, "fetch_reddit_posts", boom)
+    monkeypatch.delenv("REDDIT_CLIENT_ID", raising=False)
+    monkeypatch.delenv("REDDIT_CLIENT_SECRET", raising=False)
+    assert pipeline.run_full_cycle() == []
+
+    monkeypatch.setenv("REDDIT_CLIENT_ID", "x")
+    monkeypatch.setenv("REDDIT_CLIENT_SECRET", "y")
+    fetched = []
+    monkeypatch.setattr(pipeline, "fetch_reddit_posts", lambda: fetched.append(1) or [])
+    pipeline.run_full_cycle()
+    assert fetched == [1]  # credentials present: the cycle lights up
+
+
 def test_same_source_type_never_corroborates(tmp_db, monkeypatch):
     _wire_cta(monkeypatch, [CTA_ALERT], [CTA_EXTRACTED])
     pipeline.run_cta_cycle()

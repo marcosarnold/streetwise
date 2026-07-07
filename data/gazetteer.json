@@ -1,5 +1,5 @@
 {
- "built_at": "2026-07-02T15:01:46.368750+00:00",
+ "built_at": "2026-07-07T05:10:30.512434+00:00",
  "lines": {
   "cta_rail": [
    {
@@ -45,59 +45,59 @@
   ],
   "metra": [
    {
-    "id": "UP-N",
-    "name": "Union Pacific North",
-    "color": null
-   },
-   {
-    "id": "UP-NW",
-    "name": "Union Pacific Northwest",
-    "color": null
-   },
-   {
-    "id": "UP-W",
-    "name": "Union Pacific West",
-    "color": null
-   },
-   {
-    "id": "MD-N",
-    "name": "Milwaukee District North",
-    "color": null
-   },
-   {
-    "id": "MD-W",
-    "name": "Milwaukee District West",
-    "color": null
-   },
-   {
-    "id": "NCS",
-    "name": "North Central Service",
-    "color": null
-   },
-   {
     "id": "BNSF",
-    "name": "BNSF Railway",
-    "color": null
+    "name": "Burlington Northern",
+    "color": "#29C233"
    },
    {
     "id": "HC",
     "name": "Heritage Corridor",
-    "color": null
+    "color": "#550E0C"
    },
    {
-    "id": "RI",
-    "name": "Rock Island District",
-    "color": null
+    "id": "MD-N",
+    "name": "Milwaukee North",
+    "color": "#CC5500"
+   },
+   {
+    "id": "MD-W",
+    "name": "Milwaukee West",
+    "color": "#F1AD0E"
    },
    {
     "id": "ME",
     "name": "Metra Electric",
-    "color": null
+    "color": "#EB5C00"
+   },
+   {
+    "id": "NCS",
+    "name": "North Central Service",
+    "color": "#9785BC"
+   },
+   {
+    "id": "RI",
+    "name": "Rock Island",
+    "color": "#E02400"
    },
    {
     "id": "SWS",
-    "name": "SouthWest Service",
-    "color": null
+    "name": "Southwest Service",
+    "color": "#0042A8"
+   },
+   {
+    "id": "UP-N",
+    "name": "Union Pacific North",
+    "color": "#008000"
+   },
+   {
+    "id": "UP-NW",
+    "name": "Union Pacific Northwest",
+    "color": "#FFE600"
+   },
+   {
+    "id": "UP-W",
+    "name": "Union Pacific West",
+    "color": "#FE8D81"
    }
   ]
  },
@@ -1443,6 +1443,2185 @@
    "routes": [
     "Purple",
     "Red"
+   ]
+  },
+  {
+   "name": "103rd St. (Rosemoor)",
+   "agency": "metra",
+   "lat": 41.7069444,
+   "lng": -87.6072222,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "103rd St. - Beverly Hills",
+   "agency": "metra",
+   "lat": 41.7061111,
+   "lng": -87.6688889,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "103rd St.-Washington Hts.",
+   "agency": "metra",
+   "lat": 41.7055556,
+   "lng": -87.6558333,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "107th St.",
+   "agency": "metra",
+   "lat": 41.6997222,
+   "lng": -87.6088889,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "107th St. - Beverly Hills",
+   "agency": "metra",
+   "lat": 41.6988889,
+   "lng": -87.67,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "111th St. (Pullman)",
+   "agency": "metra",
+   "lat": 41.6927778,
+   "lng": -87.6105556,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "111th St. - Morgan Park",
+   "agency": "metra",
+   "lat": 41.6927778,
+   "lng": -87.6705556,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "115th St. - Morgan Park",
+   "agency": "metra",
+   "lat": 41.685,
+   "lng": -87.6716667,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "119th St.",
+   "agency": "metra",
+   "lat": 41.6763889,
+   "lng": -87.6725,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "123rd St.",
+   "agency": "metra",
+   "lat": 41.67,
+   "lng": -87.6736111,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "147th St.",
+   "agency": "metra",
+   "lat": 41.6227778,
+   "lng": -87.6361111,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "18th St.",
+   "agency": "metra",
+   "lat": 41.8583333,
+   "lng": -87.6180556,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "211th St.",
+   "agency": "metra",
+   "lat": 41.5061111,
+   "lng": -87.6983333,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "27th St.",
+   "agency": "metra",
+   "lat": 41.8441667,
+   "lng": -87.6133333,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "35th St. - Lou Jones",
+   "agency": "metra",
+   "lat": 41.8313889,
+   "lng": -87.6291667,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "47th St. (Kenwood)",
+   "agency": "metra",
+   "lat": 41.8097222,
+   "lng": -87.5913889,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "51st/53rd St. (Hyde Park)",
+   "agency": "metra",
+   "lat": 41.8,
+   "lng": -87.5869444,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "55th - 56th - 57th St.",
+   "agency": "metra",
+   "lat": 41.7933333,
+   "lng": -87.5875,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "59th St. (U. of Chicago)",
+   "agency": "metra",
+   "lat": 41.7880556,
+   "lng": -87.5886111,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "63rd St.",
+   "agency": "metra",
+   "lat": 41.7802778,
+   "lng": -87.5905556,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "75th St. (Grand Crossing)",
+   "agency": "metra",
+   "lat": 41.7588889,
+   "lng": -87.5952778,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "79th St. (Chatham)",
+   "agency": "metra",
+   "lat": 41.7508333,
+   "lng": -87.5972222,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "83rd St.",
+   "agency": "metra",
+   "lat": 41.745,
+   "lng": -87.5516667,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "83rd St. (Avalon Park)",
+   "agency": "metra",
+   "lat": 41.7441667,
+   "lng": -87.5986111,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "87th St.",
+   "agency": "metra",
+   "lat": 41.7377778,
+   "lng": -87.5483333,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "87th St. (Woodruff)",
+   "agency": "metra",
+   "lat": 41.7369444,
+   "lng": -87.6002778,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "91st St.",
+   "agency": "metra",
+   "lat": 41.7294444,
+   "lng": -87.6019444,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "91st St. - Beverly Hills",
+   "agency": "metra",
+   "lat": 41.7280556,
+   "lng": -87.6672222,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "95th St.",
+   "agency": "metra",
+   "lat": 41.7219444,
+   "lng": -87.6038889,
+   "routes": []
+  },
+  {
+   "name": "95th St. - Beverly Hills",
+   "agency": "metra",
+   "lat": 41.7213889,
+   "lng": -87.6672222,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "95th St.-Longwood",
+   "agency": "metra",
+   "lat": 41.7211111,
+   "lng": -87.6502778,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "99th St. - Beverly Hills",
+   "agency": "metra",
+   "lat": 41.7136111,
+   "lng": -87.6675,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Antioch",
+   "agency": "metra",
+   "lat": 42.4811111,
+   "lng": -88.0925,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Arlington Heights",
+   "agency": "metra",
+   "lat": 42.0841667,
+   "lng": -87.9836111,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Arlington Park",
+   "agency": "metra",
+   "lat": 42.0952778,
+   "lng": -88.0091667,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Ashburn",
+   "agency": "metra",
+   "lat": 41.7416667,
+   "lng": -87.7125,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Ashland",
+   "agency": "metra",
+   "lat": 41.6694444,
+   "lng": -87.6605556,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Aurora",
+   "agency": "metra",
+   "lat": 41.7608333,
+   "lng": -88.3083333,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Barrington",
+   "agency": "metra",
+   "lat": 42.1527778,
+   "lng": -88.1319444,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Bartlett",
+   "agency": "metra",
+   "lat": 41.9922222,
+   "lng": -88.1838889,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Bellwood",
+   "agency": "metra",
+   "lat": 41.8913889,
+   "lng": -87.8825,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Belmont",
+   "agency": "metra",
+   "lat": 41.7952778,
+   "lng": -88.0380556,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Bensenville",
+   "agency": "metra",
+   "lat": 41.9569444,
+   "lng": -87.9419444,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Berkeley",
+   "agency": "metra",
+   "lat": 41.8961111,
+   "lng": -87.9152778,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Berwyn",
+   "agency": "metra",
+   "lat": 41.8330556,
+   "lng": -87.7936111,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Big Timber",
+   "agency": "metra",
+   "lat": 42.0586111,
+   "lng": -88.3277778,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Blue Island",
+   "agency": "metra",
+   "lat": 41.6561111,
+   "lng": -87.6758333,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Blue Island-Vermont",
+   "agency": "metra",
+   "lat": 41.6547222,
+   "lng": -87.6777778,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Braeside",
+   "agency": "metra",
+   "lat": 42.1527778,
+   "lng": -87.7725,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Brainerd",
+   "agency": "metra",
+   "lat": 41.7322222,
+   "lng": -87.6588889,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Brookfield",
+   "agency": "metra",
+   "lat": 41.8219444,
+   "lng": -87.8430556,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Bryn Mawr",
+   "agency": "metra",
+   "lat": 41.7661111,
+   "lng": -87.5766667,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Buffalo Grove",
+   "agency": "metra",
+   "lat": 42.1686111,
+   "lng": -87.9413889,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Burr Oak",
+   "agency": "metra",
+   "lat": 41.6622222,
+   "lng": -87.6688889,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Calumet",
+   "agency": "metra",
+   "lat": 41.5736111,
+   "lng": -87.6625,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Cary",
+   "agency": "metra",
+   "lat": 42.2088889,
+   "lng": -88.2413889,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Central St.",
+   "agency": "metra",
+   "lat": 42.0641667,
+   "lng": -87.6980556,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Cheltenham (79th St.)",
+   "agency": "metra",
+   "lat": 41.7522222,
+   "lng": -87.5525,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Chicago OTC",
+   "agency": "metra",
+   "lat": 41.8822222,
+   "lng": -87.6405556,
+   "routes": [
+    "UP-N",
+    "UP-NW",
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Chicago Ridge",
+   "agency": "metra",
+   "lat": 41.7033333,
+   "lng": -87.7802778,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Chicago Union Station",
+   "agency": "metra",
+   "lat": 41.8788889,
+   "lng": -87.6388889,
+   "routes": [
+    "BNSF",
+    "HC",
+    "MD-N",
+    "MD-W",
+    "NCS",
+    "SWS"
+   ]
+  },
+  {
+   "name": "Cicero",
+   "agency": "metra",
+   "lat": 41.8441667,
+   "lng": -87.7455556,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Clarendon Hills",
+   "agency": "metra",
+   "lat": 41.7969444,
+   "lng": -87.9536111,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Clybourn",
+   "agency": "metra",
+   "lat": 41.9169444,
+   "lng": -87.6680556,
+   "routes": [
+    "UP-N",
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "College Ave",
+   "agency": "metra",
+   "lat": 41.8683333,
+   "lng": -88.0902778,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Congress Park",
+   "agency": "metra",
+   "lat": 41.8188889,
+   "lng": -87.8575,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Crystal Lake",
+   "agency": "metra",
+   "lat": 42.2441667,
+   "lng": -88.3172222,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Cumberland",
+   "agency": "metra",
+   "lat": 42.0525,
+   "lng": -87.9122222,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Dee Road",
+   "agency": "metra",
+   "lat": 42.0241667,
+   "lng": -87.8561111,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Deerfield",
+   "agency": "metra",
+   "lat": 42.1680556,
+   "lng": -87.85,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Des Plaines",
+   "agency": "metra",
+   "lat": 42.0408333,
+   "lng": -87.8866667,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Downers Grove",
+   "agency": "metra",
+   "lat": 41.7952778,
+   "lng": -88.0097222,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Edgebrook",
+   "agency": "metra",
+   "lat": 41.9977778,
+   "lng": -87.7655556,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Edison Park",
+   "agency": "metra",
+   "lat": 42.0022222,
+   "lng": -87.8175,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Elburn",
+   "agency": "metra",
+   "lat": 41.8905556,
+   "lng": -88.4638889,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Elgin",
+   "agency": "metra",
+   "lat": 42.0361111,
+   "lng": -88.2861111,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Elmhurst",
+   "agency": "metra",
+   "lat": 41.8997222,
+   "lng": -87.9408333,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Elmwood Park",
+   "agency": "metra",
+   "lat": 41.9247222,
+   "lng": -87.8147222,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Evanston (Davis St.)",
+   "agency": "metra",
+   "lat": 42.0480556,
+   "lng": -87.6847222,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Fairview Ave.",
+   "agency": "metra",
+   "lat": 41.7952778,
+   "lng": -87.9936111,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Flossmoor",
+   "agency": "metra",
+   "lat": 41.5430556,
+   "lng": -87.6786111,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Forest Glen",
+   "agency": "metra",
+   "lat": 41.9780556,
+   "lng": -87.7555556,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Fort Sheridan",
+   "agency": "metra",
+   "lat": 42.2175,
+   "lng": -87.8208333,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Fox Lake",
+   "agency": "metra",
+   "lat": 42.3983333,
+   "lng": -88.1822222,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Fox River Grove",
+   "agency": "metra",
+   "lat": 42.1977778,
+   "lng": -88.2194444,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Franklin Park",
+   "agency": "metra",
+   "lat": 41.9366667,
+   "lng": -87.8663889,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Franklin Pk",
+   "agency": "metra",
+   "lat": 41.9377778,
+   "lng": -87.86,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Galewood",
+   "agency": "metra",
+   "lat": 41.9163889,
+   "lng": -87.7858333,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Geneva",
+   "agency": "metra",
+   "lat": 41.8816667,
+   "lng": -88.31,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Gladstone Park",
+   "agency": "metra",
+   "lat": 41.9797222,
+   "lng": -87.7780556,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Glen Ellyn",
+   "agency": "metra",
+   "lat": 41.8766667,
+   "lng": -88.0647222,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Glen/N. Glenview",
+   "agency": "metra",
+   "lat": 42.0975,
+   "lng": -87.8158333,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Glencoe",
+   "agency": "metra",
+   "lat": 42.1355556,
+   "lng": -87.7580556,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Glenview",
+   "agency": "metra",
+   "lat": 42.075,
+   "lng": -87.8055556,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Golf",
+   "agency": "metra",
+   "lat": 42.0583333,
+   "lng": -87.7969444,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Grand/Cicero",
+   "agency": "metra",
+   "lat": 41.9144444,
+   "lng": -87.7461111,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Grayland",
+   "agency": "metra",
+   "lat": 41.9488889,
+   "lng": -87.7402778,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Grayslake",
+   "agency": "metra",
+   "lat": 42.3336111,
+   "lng": -88.0433333,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Great Lakes",
+   "agency": "metra",
+   "lat": 42.3069444,
+   "lng": -87.8463889,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Gresham",
+   "agency": "metra",
+   "lat": 41.7363889,
+   "lng": -87.6447222,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Halsted Street",
+   "agency": "metra",
+   "lat": 41.8602778,
+   "lng": -87.6472222,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Hanover Park",
+   "agency": "metra",
+   "lat": 41.9880556,
+   "lng": -88.1491667,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Hanson Park",
+   "agency": "metra",
+   "lat": 41.9166667,
+   "lng": -87.7669444,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Harlem Ave.",
+   "agency": "metra",
+   "lat": 41.8313889,
+   "lng": -87.8019444,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Harvard",
+   "agency": "metra",
+   "lat": 42.4197222,
+   "lng": -88.6175,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Harvey",
+   "agency": "metra",
+   "lat": 41.6083333,
+   "lng": -87.6438889,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Hazel Crest",
+   "agency": "metra",
+   "lat": 41.5808333,
+   "lng": -87.6586111,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Healy",
+   "agency": "metra",
+   "lat": 41.9247222,
+   "lng": -87.7277778,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Hickory Creek",
+   "agency": "metra",
+   "lat": 41.5486111,
+   "lng": -87.8455556,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Highland Park",
+   "agency": "metra",
+   "lat": 42.1833333,
+   "lng": -87.7975,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Highlands",
+   "agency": "metra",
+   "lat": 41.805,
+   "lng": -87.9183333,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Highwood",
+   "agency": "metra",
+   "lat": 42.2033333,
+   "lng": -87.8105556,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Hinsdale",
+   "agency": "metra",
+   "lat": 41.8027778,
+   "lng": -87.9283333,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Hollywood",
+   "agency": "metra",
+   "lat": 41.8244444,
+   "lng": -87.8338889,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Homewood",
+   "agency": "metra",
+   "lat": 41.5622222,
+   "lng": -87.6686111,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Hubbard Woods",
+   "agency": "metra",
+   "lat": 42.1180556,
+   "lng": -87.7436111,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Indian Hill",
+   "agency": "metra",
+   "lat": 42.0944444,
+   "lng": -87.7238889,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Ingleside",
+   "agency": "metra",
+   "lat": 42.3838889,
+   "lng": -88.1536111,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Irving Park",
+   "agency": "metra",
+   "lat": 41.9525,
+   "lng": -87.7297222,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Itasca",
+   "agency": "metra",
+   "lat": 41.9713889,
+   "lng": -88.0141667,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Ivanhoe",
+   "agency": "metra",
+   "lat": 41.6333333,
+   "lng": -87.6302778,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Jefferson Park",
+   "agency": "metra",
+   "lat": 41.9713889,
+   "lng": -87.7633333,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Joliet",
+   "agency": "metra",
+   "lat": 41.5244444,
+   "lng": -88.0797222,
+   "routes": [
+    "HC",
+    "RI"
+   ]
+  },
+  {
+   "name": "Kedzie",
+   "agency": "metra",
+   "lat": 41.8883333,
+   "lng": -87.7069444,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Kenilworth",
+   "agency": "metra",
+   "lat": 42.0863889,
+   "lng": -87.7166667,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Kenosha",
+   "agency": "metra",
+   "lat": 42.5858333,
+   "lng": -87.8258333,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Kensington",
+   "agency": "metra",
+   "lat": 41.6858333,
+   "lng": -87.6122222,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "La Fox",
+   "agency": "metra",
+   "lat": 41.8866667,
+   "lng": -88.4122222,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "LaGrange Road",
+   "agency": "metra",
+   "lat": 41.8158333,
+   "lng": -87.8711111,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "LaSalle Street",
+   "agency": "metra",
+   "lat": 41.8763889,
+   "lng": -87.6322222,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Lake Bluff",
+   "agency": "metra",
+   "lat": 42.2797222,
+   "lng": -87.8466667,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Lake Forest",
+   "agency": "metra",
+   "lat": 42.2236111,
+   "lng": -87.8747222,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Lake Forest.",
+   "agency": "metra",
+   "lat": 42.2525,
+   "lng": -87.8397222,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Lake Villa",
+   "agency": "metra",
+   "lat": 42.4175,
+   "lng": -88.0794444,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Lake-Cook",
+   "agency": "metra",
+   "lat": 42.1516667,
+   "lng": -87.8413889,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Laraway Road",
+   "agency": "metra",
+   "lat": 41.4847222,
+   "lng": -87.9597222,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Lavergne",
+   "agency": "metra",
+   "lat": 41.8355556,
+   "lng": -87.7833333,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Lemont",
+   "agency": "metra",
+   "lat": 41.6736111,
+   "lng": -88.0025,
+   "routes": [
+    "HC"
+   ]
+  },
+  {
+   "name": "Libertyville",
+   "agency": "metra",
+   "lat": 42.2911111,
+   "lng": -87.9563889,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Lisle",
+   "agency": "metra",
+   "lat": 41.7977778,
+   "lng": -88.0719444,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Lockport",
+   "agency": "metra",
+   "lat": 41.585,
+   "lng": -88.0602778,
+   "routes": [
+    "HC"
+   ]
+  },
+  {
+   "name": "Lombard",
+   "agency": "metra",
+   "lat": 41.8866667,
+   "lng": -88.0186111,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Long Lake",
+   "agency": "metra",
+   "lat": 42.3680556,
+   "lng": -88.1280556,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Main St.",
+   "agency": "metra",
+   "lat": 42.0333333,
+   "lng": -87.68,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Manhattan",
+   "agency": "metra",
+   "lat": 41.4183333,
+   "lng": -87.9891667,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Mannheim",
+   "agency": "metra",
+   "lat": 41.9416667,
+   "lng": -87.8833333,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Mars",
+   "agency": "metra",
+   "lat": 41.9191667,
+   "lng": -87.7944444,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Matteson",
+   "agency": "metra",
+   "lat": 41.4986111,
+   "lng": -87.7022222,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Mayfair",
+   "agency": "metra",
+   "lat": 41.9597222,
+   "lng": -87.7458333,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Maywood",
+   "agency": "metra",
+   "lat": 41.8883333,
+   "lng": -87.8386111,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "McCormick Place",
+   "agency": "metra",
+   "lat": 41.8513889,
+   "lng": -87.6163889,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "McHenry",
+   "agency": "metra",
+   "lat": 42.3433333,
+   "lng": -88.2761111,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Medinah",
+   "agency": "metra",
+   "lat": 41.9780556,
+   "lng": -88.0508333,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Melrose Park",
+   "agency": "metra",
+   "lat": 41.8902778,
+   "lng": -87.8555556,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Midlothian",
+   "agency": "metra",
+   "lat": 41.6263889,
+   "lng": -87.7116667,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Millennium Station",
+   "agency": "metra",
+   "lat": 41.8841667,
+   "lng": -87.6230556,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Mokena",
+   "agency": "metra",
+   "lat": 41.5308333,
+   "lng": -87.8866667,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Mont Clare",
+   "agency": "metra",
+   "lat": 41.9216667,
+   "lng": -87.8016667,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Morton Grove",
+   "agency": "metra",
+   "lat": 42.035,
+   "lng": -87.7852778,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Mt. Prospect",
+   "agency": "metra",
+   "lat": 42.0630556,
+   "lng": -87.9361111,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Mundelein",
+   "agency": "metra",
+   "lat": 42.2669444,
+   "lng": -87.9980556,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Museum Campus/11th St.",
+   "agency": "metra",
+   "lat": 41.8686111,
+   "lng": -87.6213889,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Naperville",
+   "agency": "metra",
+   "lat": 41.7797222,
+   "lng": -88.1455556,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "National St",
+   "agency": "metra",
+   "lat": 42.0263889,
+   "lng": -88.2788889,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "New Lenox",
+   "agency": "metra",
+   "lat": 41.5144444,
+   "lng": -87.9652778,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "North Chicago",
+   "agency": "metra",
+   "lat": 42.3286111,
+   "lng": -87.8369444,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Northbrook",
+   "agency": "metra",
+   "lat": 42.1269444,
+   "lng": -87.8277778,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Norwood Park",
+   "agency": "metra",
+   "lat": 41.9916667,
+   "lng": -87.7988889,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "O'Hare Transfer",
+   "agency": "metra",
+   "lat": 41.995,
+   "lng": -87.8805556,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Oak Forest",
+   "agency": "metra",
+   "lat": 41.6044444,
+   "lng": -87.7383333,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Oak Lawn Patriot",
+   "agency": "metra",
+   "lat": 41.7194444,
+   "lng": -87.7486111,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Oak Park",
+   "agency": "metra",
+   "lat": 41.8869444,
+   "lng": -87.8011111,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Olympia Fields",
+   "agency": "metra",
+   "lat": 41.5213889,
+   "lng": -87.69,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Orland Park 143rd",
+   "agency": "metra",
+   "lat": 41.6305556,
+   "lng": -87.8591667,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Orland Park 153rd",
+   "agency": "metra",
+   "lat": 41.6094444,
+   "lng": -87.8733333,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Orland Park 179th",
+   "agency": "metra",
+   "lat": 41.5638889,
+   "lng": -87.9025,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Palatine",
+   "agency": "metra",
+   "lat": 42.1130556,
+   "lng": -88.0483333,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Palos Heights",
+   "agency": "metra",
+   "lat": 41.6819444,
+   "lng": -87.8069444,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Palos Park",
+   "agency": "metra",
+   "lat": 41.6688889,
+   "lng": -87.8202778,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Park Ridge",
+   "agency": "metra",
+   "lat": 42.0102778,
+   "lng": -87.8316667,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Peterson/Ridge",
+   "agency": "metra",
+   "lat": 41.9911111,
+   "lng": -87.675,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Pingree Road",
+   "agency": "metra",
+   "lat": 42.2341667,
+   "lng": -88.2980556,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Prairie Crossing",
+   "agency": "metra",
+   "lat": 42.3208333,
+   "lng": -88.0152778,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Prairie Crossing.",
+   "agency": "metra",
+   "lat": 42.3180556,
+   "lng": -88.0172222,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Prairie St.",
+   "agency": "metra",
+   "lat": 41.6625,
+   "lng": -87.675,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Prairie View",
+   "agency": "metra",
+   "lat": 42.1980556,
+   "lng": -87.9558333,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Prospect Hts",
+   "agency": "metra",
+   "lat": 42.0922222,
+   "lng": -87.9080556,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Racine",
+   "agency": "metra",
+   "lat": 41.6741667,
+   "lng": -87.6519444,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Ravenswood",
+   "agency": "metra",
+   "lat": 41.9683333,
+   "lng": -87.6744444,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Ravinia",
+   "agency": "metra",
+   "lat": 42.165,
+   "lng": -87.7827778,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Ravinia Park",
+   "agency": "metra",
+   "lat": 42.1580556,
+   "lng": -87.7769444,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Richton Park",
+   "agency": "metra",
+   "lat": 41.4855556,
+   "lng": -87.7094444,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "River Forest",
+   "agency": "metra",
+   "lat": 41.8869444,
+   "lng": -87.825,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "River Grove",
+   "agency": "metra",
+   "lat": 41.9311111,
+   "lng": -87.8361111,
+   "routes": [
+    "MD-W",
+    "NCS"
+   ]
+  },
+  {
+   "name": "Riverdale",
+   "agency": "metra",
+   "lat": 41.6466667,
+   "lng": -87.6233333,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Riverside",
+   "agency": "metra",
+   "lat": 41.8272222,
+   "lng": -87.82,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Robbins",
+   "agency": "metra",
+   "lat": 41.6408333,
+   "lng": -87.6944444,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Rogers Park",
+   "agency": "metra",
+   "lat": 42.0094444,
+   "lng": -87.6755556,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Romeoville",
+   "agency": "metra",
+   "lat": 41.6372222,
+   "lng": -88.0494444,
+   "routes": [
+    "HC"
+   ]
+  },
+  {
+   "name": "Roselle",
+   "agency": "metra",
+   "lat": 41.9813889,
+   "lng": -88.0672222,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Rosemont",
+   "agency": "metra",
+   "lat": 41.9761111,
+   "lng": -87.8738889,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Round Lake",
+   "agency": "metra",
+   "lat": 42.3544444,
+   "lng": -88.0941667,
+   "routes": [
+    "MD-N"
+   ]
+  },
+  {
+   "name": "Round Lake Beach",
+   "agency": "metra",
+   "lat": 42.385,
+   "lng": -88.0655556,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Route 59",
+   "agency": "metra",
+   "lat": 41.7777778,
+   "lng": -88.2086111,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Schaumburg",
+   "agency": "metra",
+   "lat": 41.9891667,
+   "lng": -88.1180556,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Schiller Park",
+   "agency": "metra",
+   "lat": 41.9627778,
+   "lng": -87.8705556,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "South Chicago (93rd)",
+   "agency": "metra",
+   "lat": 41.7266667,
+   "lng": -87.5477778,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "South Shore",
+   "agency": "metra",
+   "lat": 41.7652778,
+   "lng": -87.5658333,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "State St.",
+   "agency": "metra",
+   "lat": 41.6744444,
+   "lng": -87.6219444,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Stewart Ridge",
+   "agency": "metra",
+   "lat": 41.6744444,
+   "lng": -87.6316667,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Stone Ave.",
+   "agency": "metra",
+   "lat": 41.8141667,
+   "lng": -87.8783333,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Stony Island",
+   "agency": "metra",
+   "lat": 41.7661111,
+   "lng": -87.5869444,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Summit",
+   "agency": "metra",
+   "lat": 41.795,
+   "lng": -87.8097222,
+   "routes": [
+    "HC"
+   ]
+  },
+  {
+   "name": "Tinley Park",
+   "agency": "metra",
+   "lat": 41.5758333,
+   "lng": -87.7827778,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "Tinley-80th",
+   "agency": "metra",
+   "lat": 41.5644444,
+   "lng": -87.8094444,
+   "routes": [
+    "RI"
+   ]
+  },
+  {
+   "name": "University Park",
+   "agency": "metra",
+   "lat": 41.4594444,
+   "lng": -87.7233333,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Van Buren St.",
+   "agency": "metra",
+   "lat": 41.8769444,
+   "lng": -87.6230556,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Vernon Hills",
+   "agency": "metra",
+   "lat": 42.2155556,
+   "lng": -87.9644444,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Villa Park",
+   "agency": "metra",
+   "lat": 41.8963889,
+   "lng": -87.9775,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Washington St (Grayslake)",
+   "agency": "metra",
+   "lat": 42.3591667,
+   "lng": -88.0505556,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Waukegan",
+   "agency": "metra",
+   "lat": 42.3605556,
+   "lng": -87.8283333,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "West Chicago",
+   "agency": "metra",
+   "lat": 41.8811111,
+   "lng": -88.1988889,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "West Hinsdale",
+   "agency": "metra",
+   "lat": 41.7988889,
+   "lng": -87.9452778,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "West Pullman",
+   "agency": "metra",
+   "lat": 41.6741667,
+   "lng": -87.6422222,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Western Ave",
+   "agency": "metra",
+   "lat": 41.8891667,
+   "lng": -87.6880556,
+   "routes": [
+    "MD-N",
+    "MD-W",
+    "NCS"
+   ]
+  },
+  {
+   "name": "Western Avenue",
+   "agency": "metra",
+   "lat": 41.8577778,
+   "lng": -87.6852778,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Western Springs",
+   "agency": "metra",
+   "lat": 41.8088889,
+   "lng": -87.9011111,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Westmont",
+   "agency": "metra",
+   "lat": 41.7955556,
+   "lng": -87.9763889,
+   "routes": [
+    "BNSF"
+   ]
+  },
+  {
+   "name": "Wheaton",
+   "agency": "metra",
+   "lat": 41.8644444,
+   "lng": -88.1119444,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Wheeling",
+   "agency": "metra",
+   "lat": 42.1363889,
+   "lng": -87.9272222,
+   "routes": [
+    "NCS"
+   ]
+  },
+  {
+   "name": "Willow Springs",
+   "agency": "metra",
+   "lat": 41.7333333,
+   "lng": -87.8783333,
+   "routes": [
+    "HC"
+   ]
+  },
+  {
+   "name": "Wilmette",
+   "agency": "metra",
+   "lat": 42.0772222,
+   "lng": -87.7091667,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Windsor Park",
+   "agency": "metra",
+   "lat": 41.7586111,
+   "lng": -87.5594444,
+   "routes": [
+    "ME"
+   ]
+  },
+  {
+   "name": "Winfield",
+   "agency": "metra",
+   "lat": 41.87,
+   "lng": -88.1569444,
+   "routes": [
+    "UP-W"
+   ]
+  },
+  {
+   "name": "Winnetka",
+   "agency": "metra",
+   "lat": 42.1052778,
+   "lng": -87.7327778,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Winthrop Harbor",
+   "agency": "metra",
+   "lat": 42.4827778,
+   "lng": -87.8161111,
+   "routes": [
+    "UP-N"
+   ]
+  },
+  {
+   "name": "Wood Dale",
+   "agency": "metra",
+   "lat": 41.9625,
+   "lng": -87.9752778,
+   "routes": [
+    "MD-W"
+   ]
+  },
+  {
+   "name": "Woodstock",
+   "agency": "metra",
+   "lat": 42.3169444,
+   "lng": -88.4475,
+   "routes": [
+    "UP-NW"
+   ]
+  },
+  {
+   "name": "Worth",
+   "agency": "metra",
+   "lat": 41.6913889,
+   "lng": -87.7958333,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Wrightwood",
+   "agency": "metra",
+   "lat": 41.7488889,
+   "lng": -87.7036111,
+   "routes": [
+    "SWS"
+   ]
+  },
+  {
+   "name": "Zion",
+   "agency": "metra",
+   "lat": 42.4491667,
+   "lng": -87.8180556,
+   "routes": [
+    "UP-N"
    ]
   }
  ]

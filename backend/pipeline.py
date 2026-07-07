@@ -7,6 +7,7 @@ scope defaults to 'acute'), matcher/latency changes (0.6).
 """
 
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Callable
@@ -116,9 +117,24 @@ def run_reddit_cycle() -> list[dict]:
     )
 
 
+def reddit_configured() -> bool:
+    """Social signal is deferred out of the MVP (decision log 2026-07-02: no accessible
+    API) — the cycle and its status dot self-activate when credentials appear, the same
+    pattern as the Metra gazetteer keys. The machinery it feeds (verification states,
+    corroboration, latency capture, TTL expiry) stays built and unit-tested."""
+    def cred(name: str) -> str:
+        value = os.environ.get(name, "").strip()
+        return "" if value == "..." else value  # the .env template's own placeholder
+
+    return bool(cred("REDDIT_CLIENT_ID") and cred("REDDIT_CLIENT_SECRET"))
+
+
 def run_full_cycle() -> list[dict]:
-    """Run a poll cycle across all sources."""
-    return run_cta_cycle() + run_metra_cycle() + run_reddit_cycle()
+    """Run a poll cycle across all configured sources."""
+    stored = run_cta_cycle() + run_metra_cycle()
+    if reddit_configured():
+        stored += run_reddit_cycle()
+    return stored
 
 
 def _run_cycle(

@@ -6,14 +6,17 @@ _Rewritten 2026-07-01 for the transit-first pivot._
 the alert when your line breaks during your commute window, and over time the public
 record of how the system *actually* performs versus how it's scheduled to.
 
-**The moat is data we accumulate, not code we write.** Two datasets compound from the day
-the pipeline runs truthfully, and neither can be backfilled or copied by cloning the repo:
+**The moat is data we accumulate, not code we write.** Two datasets, neither
+backfillable nor copyable by cloning the repo:
 
-1. **Corroboration latency** — how far ahead of official alerts the street signal runs
-   ("riders knew N minutes before the agency said so"). Our headline finding, once
-   statistically real.
-2. **True durations** — agencies announce starts, almost never ends. Measured clear times
-   ("Blue Line signal problems typically clear in ~40 min") exist nowhere else.
+1. **True durations** — the MVP moat, entirely official-feed-derived. Agencies announce
+   starts, almost never ends. Measured clear times ("Blue Line signal problems typically
+   clear in ~40 min") exist nowhere else.
+2. **Corroboration latency** — how far ahead of official alerts street signal runs. The
+   instrument is built and end-to-end tested (staged pairs measure clean leads), but it
+   is **dormant pending an accessible social source** — Reddit's API didn't make the MVP
+   (decision log 2026-07-02); Bluesky is the likely candidate. It becomes the headline
+   finding if and when it runs.
 
 This is why Phase 0's "delete nothing" rule outranks every feature.
 
@@ -43,9 +46,9 @@ untrusted pipeline burns its one chance at 7 a.m.
 - **Per-line permalinks** (`/line/red`, `/line/up-n`) — server-rendered status + history
   with proper meta tags, because "Blue Line is down" texted to a group chat is our
   distribution.
-- **The data story** — publish the latency finding and the durations dataset when they
-  are statistically real: our equivalent of a flagship study, and the launch narrative
-  (Reddit, local press, transit Twitter).
+- **The data story** — publish the durations dataset (and the latency finding, if the
+  social instrument is live by then) when statistically real: our equivalent of a
+  flagship study, and the launch narrative (local press, transit social media).
 - Instrument the funnel (visit → board glance → card open → watch armed) with a
   cookieless counter consistent with a no-accounts, no-tracking posture.
 
@@ -117,6 +120,19 @@ Major pivots, with date and rationale.
   let lingering Reddit posts block real clearances. "Vanished" is defined as ≥ 2
   successful polls since `last_seen_at` (append-only `poll_log`), making the feed-down
   guard structural rather than an `if`.
+- **2026-07-02** — **Social signal deferred out of the MVP; machinery kept dormant.**
+  Reddit API access could not be obtained — a hard blocker: the validation week cannot
+  measure a source that cannot run. Secondary rationale: Reddit was the weakest feed
+  requiring the most machinery, and the MVP's core question (extraction accuracy +
+  verdict usefulness) is answerable from official feeds alone, which the PRD always
+  required. **Explicitly rejected as a rationale: "unofficial data weakens trust."**
+  The verification-state system (Reported vs Confirmed, corroboration promotion, expiry
+  without clearance claims) exists precisely so unofficial signal can never masquerade
+  as official — honest labeling is the trust model, not source purity. Consequences:
+  the Reddit cycle is credential-gated (self-activates if access appears; absent from
+  /status, not "unhealthy"); all states/corroboration/latency machinery stays built and
+  unit-tested; the latency experiment moves behind "an accessible social source exists"
+  (Bluesky the likely candidate); the durations archive becomes the MVP moat.
 - **2026-07-02** — **Gazetteer scope (0.4):** (a) CTA stations sourced from the city's
   L-Stops open dataset rather than raw GTFS — a 176 KB keyless JSON beats a 98 MB zip
   whose station→route join needs `stop_times.txt`; (b) Metra's GTFS is
@@ -127,3 +143,15 @@ Major pivots, with date and rationale.
   worker is complexity that path doesn't justify (revisit trigger: 0.7 validation-week
   cycle-duration or rate-limit pressure); (e) ambiguous station names resolve to
   nothing, never a guess — the no-fake-pins rule applied to name matching.
+- **2026-07-06** — **Metra endpoint found; gazetteer complete, key-free.** The developer
+  portal revealed the current hosts, superseding the 0.4 finding that Metra's GTFS was
+  credential-gated: the static schedule zip (`schedules.metrarail.com/gtfs/schedule.zip`)
+  is public, and `METRA_GTFS_API_KEY` is a bearer token for the *realtime* GTFS-rt feeds
+  (`gtfspublic.metrarr.com`) only. The build now computes the real station→line join
+  (the zip is ~470 KB with all tables — CTA's 98 MB objection doesn't apply) and takes
+  line colors from Metra's own `route_color`. Gazetteer: 144 CTA + 241 Metra stations,
+  19 lines, zero env dependencies; Metra alerts stop leaning on Nominatim for
+  station-named locations. Noted, not scheduled: the authenticated GTFS-rt alerts feed
+  is a candidate replacement for the per-line AJAX scrape (real publish timestamps —
+  which would move Metra off flagged latency fallbacks entirely — and one request
+  instead of eleven); decide at 0.7 with validation-week evidence.

@@ -19,9 +19,12 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 POLL_INTERVAL_SECONDS = 5 * 60
 HEARTBEAT_SECONDS = 30
 
+# A dormant (unconfigured) source is ABSENT from status, not unhealthy — the UI must
+# never make a deliberate deferral look like a broken feed.
 app_state = {
     "last_poll_at": None,
-    "sources_healthy": {"cta": None, "metra": None, "reddit": None},
+    "sources_healthy": {"cta": None, "metra": None,
+                        **({"reddit": None} if pipeline.reddit_configured() else {})},
 }
 
 _subscribers: list[asyncio.Queue] = []
@@ -54,7 +57,8 @@ def _run_source(name: str, cycle_fn) -> None:
 def poll_cycle() -> None:
     _run_source("cta", pipeline.run_cta_cycle)
     _run_source("metra", pipeline.run_metra_cycle)
-    _run_source("reddit", pipeline.run_reddit_cycle)
+    if "reddit" in app_state["sources_healthy"]:
+        _run_source("reddit", pipeline.run_reddit_cycle)
     _run_lifecycle_sweep()
     app_state["last_poll_at"] = datetime.now(timezone.utc).isoformat()
 

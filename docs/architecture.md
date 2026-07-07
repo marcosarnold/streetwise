@@ -120,7 +120,12 @@ All verified working as described; gotchas preserved from live debugging.
   (`data-last-updated`), `link`
 - Born confirmed (official source)
 
-### Reddit (the street sensor)
+### Reddit (the street sensor) — **DORMANT: credential-gated**
+> Social signal is deferred out of the MVP (decision log 2026-07-02 — API access could
+> not be obtained). `pipeline.reddit_configured()` gates the cycle: it is absent from
+> `/status` (not "unhealthy") and self-activates if credentials appear. Everything below
+> describes the dormant machinery, which stays built and unit-tested.
+
 - Subreddits: r/chicago, r/Chicagoland · Library: PRAW · Poll: 5 min (free-tier limits)
 - Keyword pre-filter before any Claude call: accident, crash, closed, delay,
   construction, police, fire, protest, flooding, Metra, CTA, L train, expressway, highway
@@ -134,13 +139,17 @@ All verified working as described; gotchas preserved from live debugging.
   144 parent stations with names, per-line booleans, exact coordinates; ~176 KB, no key.
   Chosen over raw CTA GTFS (a 98 MB zip whose station→route join needs `stop_times.txt`)
   — best public dataset over GTFS purism.
-- **Metra stations**: Metra's GTFS API (`gtfsapi.metra.com`) is credential-gated; every
-  public candidate URL 404/503s. The build fetches Metra stations when
-  `METRA_GTFS_ACCESS_KEY`/`METRA_GTFS_SECRET_KEY` are set (free — metra.com/developers)
-  and warns + ships CTA-only otherwise; Metra alerts fall back to Nominatim meanwhile.
+- **Metra stations**: the static GTFS zip at
+  `schedules.metrarail.com/gtfs/schedule.zip` — **public, no key** (verified
+  2026-07-06; the old `gtfsapi.metra.com` host is dead and `METRA_GTFS_API_KEY` is a
+  bearer token for the *realtime* feeds at `gtfspublic.metrarr.com` only). The zip is
+  ~470 KB with all join tables, so unlike CTA the station→line mapping is computed
+  properly: `stop_times → trips → routes`. 241 stations, each carrying its lines —
+  which is what disambiguates "Western Ave" (MD-N/MD-W/NCS) from CTA's four Westerns.
 - **Line metadata** (`lines` section): CTA rail ids/names/official brand colors (the
-  design system's semantic primitives) + the 11 Metra line ids/names (colors null until
-  verified against Metra brand assets — honesty over completeness).
+  design system's semantic primitives) + the 11 Metra lines with names and colors from
+  Metra's own `routes.txt` (`route_color` — the agency's published values, so the
+  earlier colors-null honesty rule is satisfied by authority, not omission).
 - Built **offline** by `scripts/build_gazetteer.py` → `data/gazetteer.json` (committed).
   Regenerate quarterly or on announced service changes.
 - **`lines.geojson` (route polylines) is deferred with its only consumer, 1.3b** — the
@@ -436,6 +445,7 @@ clocks and edge cases, not the HTTP plumbing.
 | Freshness at read time | Ingest-time recency is a constant, hence meaningless (v1 bug). |
 | Nothing deleted | Durations + latency archive is the moat; it cannot be backfilled. |
 | Source `type` stored explicitly | The v1 ID-shape heuristic could silently mis-corroborate — a trust bug. |
+| Social signal deferred, machinery kept | No accessible API (Reddit). Credential-gated dormant, absent-not-unhealthy in status. Trust was NOT the reason — honest labeling (states) is the trust model, not source purity. |
 | Latency from source timestamps | Fetch-time measurement carries ±poll-interval noise per side; flagged fallbacks are excluded from headline stats. |
 | Merges keep the earlier event's id | Stable identity for links/history; v1 could duplicate rows by keeping the newer id. |
 | SSE, not WebSockets | One-directional push is all we need. |

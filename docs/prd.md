@@ -42,9 +42,13 @@ visits; a commute decision produces daily ones).
 Scope note: "transit" = **CTA rail + CTA bus + Metra**. CTA bus alerts arrive in the same
 feed we already parse; excluding them is extra work to make the product worse.
 
-Road, weather, police, and civic events **stay in the pipeline as sensors, not as the
-product face**: a crash blocking the #66's street matters *because it affects the 66*.
-Their promotion back to first-class surfaces is a Phase 3 decision, made from data.
+**Street-level social signal is deferred out of the MVP entirely** (decision log
+2026-07-02): Reddit's API is not accessible, and road/weather/civic events had no other
+source. The machinery that makes unofficial signal safe — Reported vs Confirmed states,
+corroboration promotion, expiry without clearance claims, latency capture — is built,
+unit-tested, and credential-gated dormant; it self-activates when an accessible source
+(Bluesky is the likely candidate) is wired in. Until then Streetwise is an
+official-feeds product — which this PRD always required it to stand as.
 
 ## Product principles
 
@@ -101,7 +105,7 @@ Validation targets, measured over at least one full week of continuous operation
 | 1 | Extraction accuracy (event real + summary faithful, judged in `/review`) | ≥ 90% of official-source events |
 | 2 | Location resolution for CTA/Metra events (station/line matched via gazetteer) | ≥ 90%; **zero** fabricated points rendered |
 | 3 | Latency: event visible in Streetwise after source publication | ≤ 1 poll cycle (5 min) |
-| 4 | State correctness: no solo Reddit post ever renders as Confirmed | 100% |
+| 4 | State machinery: unofficial signal can never render Confirmed without independent corroboration | 100% (unit-tested; no live social source in the MVP) |
 | 5 | Clearance: events marked Cleared within 2 cycles of source clearance | ≥ 80% |
 | 6 | Score distribution is discriminating (not all events at one value) | distinct scores across sources/paths |
 | 7 | The founder-user test | I check it before my own commute without forcing myself |

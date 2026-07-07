@@ -3,18 +3,21 @@
 **Is my line okay?** Live, cross-checked status for Chicago transit.
 
 Streetwise watches CTA and Metra the way a seasoned commuter would: it reads official
-alerts the moment they post, listens to what riders are saying on the street (Reddit),
-cross-checks the two, and turns the mess into one honest verdict per line — plus a map of
-exactly what's broken, where, since when, and whether it's getting better.
+alerts the moment they post, turns the jargon into one honest verdict per line, and keeps
+the record the agencies don't — when disruptions actually started, and when service
+actually came back.
 
-The product stands on the official feeds alone: readable verdicts, honest verification
-states, and detected clearances are already a better surface than the agencies' own alert
-pages. On top of that sits the bet: **the street usually knows before the agency does**,
-and nobody measures the gap. Streetwise runs continuously, timestamps every signal, and
-accumulates two datasets no one else has — how far ahead of official alerts rider reports
-run, and how long disruptions *actually* last (agencies announce starts; they almost
-never announce ends). The live product answers "is my line okay right now?"; the archive
-becomes the record of how the system really performs.
+The product stands on the official feeds: readable verdicts, honest verification states,
+and detected clearances are already a better surface than the agencies' own alert pages.
+Underneath, Streetwise runs continuously and accumulates the dataset nobody publishes —
+**how long disruptions really last, per line and per station** (agencies announce starts;
+they almost never announce ends). The live product answers "is my line okay right now?";
+the archive becomes the record of how the system really performs.
+
+A second instrument is built, tested, and dormant: cross-checking street-level rider
+reports against official alerts and measuring how far ahead of the agency the street
+runs. It lights up the day an accessible social source exists — Reddit's API did not
+make the MVP (see the [decision log](docs/roadmap.md#decision-log)).
 
 ## Product rules
 

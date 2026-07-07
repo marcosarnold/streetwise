@@ -64,13 +64,15 @@ pytest          # pure-core tests (scorer, matcher, clearance, store)
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
-REDDIT_CLIENT_ID=...
-REDDIT_CLIENT_SECRET=...
+# OPTIONAL — social signal is deferred (decision log 2026-07-02). Leave unset: the
+# Reddit cycle is dormant and self-activates if credentials ever appear.
+REDDIT_CLIENT_ID=
+REDDIT_CLIENT_SECRET=
 REDDIT_USER_AGENT=streetwise/1.0 by u/yourusername
-# Metra GTFS is credential-gated (verified 2026-07-02) — free keys at metra.com/developers.
-# Until set, the gazetteer builds CTA-only and Metra alerts fall back to Nominatim.
-METRA_GTFS_ACCESS_KEY=...
-METRA_GTFS_SECRET_KEY=...
+# Metra developer bearer token (metra.com/metra-gtfs-api) — used only by the *realtime*
+# feeds at gtfspublic.metrarr.com (alerts/positions/tripupdates). The static schedule
+# zip that builds the gazetteer is public and needs no key.
+METRA_GTFS_API_KEY=...
 ```
 
 ## Current status
@@ -121,9 +123,9 @@ METRA_GTFS_SECRET_KEY=...
 - **0.4 — done (2026-07-02).** `scripts/build_gazetteer.py` → `data/gazetteer.json`
   (committed): 144 CTA rail stations from the city's L-Stops dataset (chosen over the
   98 MB raw GTFS), CTA official line colors, the 11 Metra line ids/names. Metra
-  *stations* are credential-gated (`METRA_GTFS_ACCESS_KEY`/`SECRET_KEY` — free at
-  metra.com/developers; **open user action item** alongside Reddit creds) — until set,
-  Metra alerts fall back to Nominatim. `backend/locate.py` resolves
+  *stations* shipped credential-gated and empty at the time (all public URLs probed
+  dead) — **superseded 2026-07-06**: the static zip is public after all; see the
+  endpoint-resolved entry below. `backend/locate.py` resolves
   station → line → Nominatim point → none; ambiguous names (four "Westerns", two on the
   Blue Line alone) resolve to nothing, never a guess; extractor strings like "Howard
   Station, Chicago, IL" join the gazetteer today, before prompt v2. Verified: 4 real
@@ -161,7 +163,26 @@ METRA_GTFS_SECRET_KEY=...
   not stored. Staged Reddit→Metra pair test: unflagged 20-minute lead measured
   end-to-end. Read-time freshness: `age_minutes` stamped at serialization in
   `_hydrate`. 44 pytest cases green.
-- **Next: 0.7 — `/review` eval surface + the validation week. Gates Phase 1.**
-  Prerequisites now load-bearing: **Reddit credentials** (still placeholders — without
-  them the validation week has no social signal, no corroboration, no latency corpus)
-  and optionally Metra GTFS keys (gazetteer coverage for Metra stations).
+- **Social signal deferred (2026-07-02, decision log).** Reddit API access could not be
+  obtained; the Reddit cycle is now credential-gated (`pipeline.reddit_configured()`) —
+  absent from `/status` and the frontend dots rather than "unhealthy", self-activating
+  if credentials ever appear. All states/corroboration/latency machinery stays built and
+  unit-tested (the staged-pair tests are its live spec). The validation week runs on
+  official feeds; PRD criterion 4 is met by unit tests. The durations archive is the
+  MVP moat; latency waits for an accessible social source (Bluesky the candidate).
+- **Metra endpoint resolved; gazetteer complete (2026-07-06).** The developer portal
+  revealed the current hosts: realtime GTFS-rt feeds at
+  `gtfspublic.metrarr.com/gtfs/public/{alerts,positions,tripupdates}` (bearer
+  `METRA_GTFS_API_KEY` — verified 200 with token, 401 without), and the static schedule
+  zip at `schedules.metrarail.com/gtfs/schedule.zip`, which turned out to be **public —
+  no key needed**. `build_gazetteer.py` rewritten: downloads the ~470 KB zip and, since
+  it ships all join tables, computes the real station→line mapping
+  (stop_times → trips → routes) plus line colors from Metra's own `route_color`.
+  Gazetteer now: 144 CTA + 241 Metra stations, 19 lines, zero env dependencies.
+  Verified: "Western Ave" + `lines=["MD-N"]` resolves to the Metra station (not CTA's
+  Western); Metra alerts no longer depend on Nominatim for station-named locations.
+  Follow-up noted for later, not now: the authenticated GTFS-rt *alerts* feed is a
+  candidate replacement for the per-line AJAX scrape in `fetchers/metra.py` (real
+  publish timestamps, one request instead of eleven) — a 0.7+ decision, not a blocker.
+- **Next: 0.7 — `/review` eval surface + the validation week (official feeds). Gates
+  Phase 1.**
